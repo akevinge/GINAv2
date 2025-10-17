@@ -11,7 +11,9 @@
 #include "config.h"
 #include "servo_config.h"
 
+// Next available channel that has not been mapped to a gpio.
 static ledc_channel_t LEDC_CHANNEL = LEDC_CHANNEL_0;
+// Map of GPIO -> channel, used to look up channel by GPIO when setting angle.
 static std::array<ledc_channel_t, GPIO_NUM_MAX> GPIO_TO_CHANNEL_MAP = [] {
   std::array<ledc_channel_t, GPIO_NUM_MAX> a{};
   a.fill(LEDC_CHANNEL_MAX);
