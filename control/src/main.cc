@@ -7,17 +7,15 @@
 extern "C" void app_main() {
   setup_valves();
 
-  vTaskDelay(pdMS_TO_TICKS(1000));  // Wait a second
   open_valve(Valve::kOxRelease);
-
-  vTaskDelay(pdMS_TO_TICKS(1000));  // Wait a second
-  close_valve(Valve::kOxRelease);
-
-  vTaskDelay(pdMS_TO_TICKS(1000));  // Wait a second
   open_valve(Valve::kOxN2Purge);
+  open_valve(Valve::kFuelRelease);
 
   vTaskDelay(pdMS_TO_TICKS(1000));  // Wait a second
+
+  close_valve(Valve::kOxRelease);
   close_valve(Valve::kOxN2Purge);
+  close_valve(Valve::kFuelRelease);
 
   while (1) {
     vTaskDelay(pdMS_TO_TICKS(1000));

@@ -13,7 +13,7 @@
 #define LEDC_MODE LEDC_LOW_SPEED_MODE
 #define LEDC_TIMER LEDC_TIMER_0          // All share the same timer.
 #define LEDC_DUTY_RES LEDC_TIMER_10_BIT  // 10-bit resolution (0-1023)
-#define LEDC_FREQUENCY 50                // 50-330Hz PWM frequency
+#define LEDC_FREQUENCY 330               // 50-330Hz PWM frequency
 
 #define SERVO_MIN_PW 500   // Min pulse width in microseconds
 #define SERVO_MAX_PW 2500  // Max pulse width in microseconds

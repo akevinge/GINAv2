@@ -22,20 +22,28 @@ struct ValveConfig {
 // !!!! READ BEFORE MODIFYING !!!!
 // Ensure the valve type is in the same order as Valve enum variants.
 // Valve enum variants are used to index this array. See get_servo_config.
+// 7, 5, 38, 39
 constexpr ValveConfig kValveConfigs[] = {
     ValveConfig{
         .valve = Valve::kOxRelease,
-        .gpio_num = GPIO_NUM_20,
+        .gpio_num = GPIO_NUM_7,
+        .max_angle = 270,
+        .close_angle = 0,
+        .open_angle = 90,
+    },
+    ValveConfig{
+        .valve = Valve::kOxN2Purge,
+        .gpio_num = GPIO_NUM_6,
         .max_angle = 180,
         .close_angle = 7,
         .open_angle = 85,
     },
     ValveConfig{
-        .valve = Valve::kOxN2Purge,
-        .gpio_num = GPIO_NUM_19,
-        .max_angle = 270,
+        .valve = Valve::kFuelRelease,
+        .gpio_num = GPIO_NUM_5,
+        .max_angle = 180,
         .close_angle = 0,
-        .open_angle = 90,
+        .open_angle = 85,
     },
 };
 
