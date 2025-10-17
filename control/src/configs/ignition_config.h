@@ -2,4 +2,4 @@
 
 #include <driver/gpio.h>
 
-constexpr gpio_num_t kIgnitionGpio = GPIO_NUM_1;
+constexpr gpio_num_t IGNITION_GPIO_NUM = GPIO_NUM_1;

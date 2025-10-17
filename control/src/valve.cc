@@ -5,7 +5,7 @@
 
 void setup_valves() {
   setup_servo_pwm_timer();
-  for (const ValveConfig& valve_config : kValveConfigs) {
+  for (const ValveConfig& valve_config : VALVE_CONFIGS) {
     setup_servo_pin(valve_config.gpio_num);
   }
 }

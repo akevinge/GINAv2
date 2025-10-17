@@ -17,7 +17,7 @@ struct ValveConfig {
 // Ensure the valve type is in the same order as Valve enum variants.
 // Valve enum variants are used to index this array. See get_servo_config.
 // 7, 5, 38, 39
-constexpr ValveConfig kValveConfigs[] = {
+constexpr ValveConfig VALVE_CONFIGS[] = {
     ValveConfig{
         .valve = Valve::kOxRelease,
         .gpio_num = GPIO_NUM_7,
@@ -42,8 +42,5 @@ constexpr ValveConfig kValveConfigs[] = {
 };
 
 constexpr const ValveConfig& get_valve_config(Valve valve) {
-  return kValveConfigs[static_cast<int>(valve)];
+  return VALVE_CONFIGS[static_cast<int>(valve)];
 }
-
-constexpr int kValveConfigCount =
-    sizeof(kValveConfigs) / sizeof(kValveConfigs[0]);
