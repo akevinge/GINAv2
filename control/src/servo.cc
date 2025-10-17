@@ -44,9 +44,9 @@ void setup_servo_pin(gpio_num_t gpio_num) {
       .duty = 0,
   };
   ledc_channel_config(&ledc_channel);
-  // Map channel to map.
+  // Map gpio to channel.
   GPIO_TO_CHANNEL_MAP[gpio_num] = LEDC_CHANNEL;
-  // Ensure no servos share the same PWM.
+  // Ensure no servos share the same channel.
   LEDC_CHANNEL =
       static_cast<ledc_channel_t>(static_cast<int>(LEDC_CHANNEL) + 1);
 }
