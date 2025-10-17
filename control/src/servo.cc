@@ -9,16 +9,7 @@
 #include <cassert>
 
 #include "config.h"
-
-#define LEDC_MODE LEDC_LOW_SPEED_MODE
-#define LEDC_TIMER LEDC_TIMER_0          // All share the same timer.
-#define LEDC_DUTY_RES LEDC_TIMER_10_BIT  // 10-bit resolution (0-1023)
-#define LEDC_FREQUENCY 330               // 50-330Hz PWM frequency
-
-#define SERVO_MIN_PW 500   // Min pulse width in microseconds
-#define SERVO_MAX_PW 2500  // Max pulse width in microseconds
-constexpr float SERVO_DUTY_PERIOD =
-    (1.0f / LEDC_FREQUENCY) * 1e6;  // Duty period in microseconds
+#include "servo_config.h"
 
 static ledc_channel_t LEDC_CHANNEL = LEDC_CHANNEL_0;
 static std::array<ledc_channel_t, GPIO_NUM_MAX> GPIO_TO_CHANNEL_MAP = [] {
