@@ -8,8 +8,7 @@
 #include <array>
 #include <cassert>
 
-#include "config.h"
-#include "servo_config.h"
+#include "configs/servo_config.h"
 
 // Next available channel that has not been mapped to a gpio.
 static ledc_channel_t LEDC_CHANNEL = LEDC_CHANNEL_0;

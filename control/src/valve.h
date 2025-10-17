@@ -1,6 +1,12 @@
 #pragma once
 
-#include "config.h"
+enum class Valve {
+  kOxRelease,
+  kOxN2Purge,
+  kFuelRelease,
+  kFuelN2Purge,
+  kValveMax
+};
 
 void setup_valves();
 

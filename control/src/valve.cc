@@ -1,6 +1,6 @@
 #include "valve.h"
 
-#include "config.h"
+#include "configs/valve_config.h"
 #include "servo.h"
 
 void setup_valves() {

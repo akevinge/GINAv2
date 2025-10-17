@@ -2,7 +2,7 @@
 
 #include <driver/gpio.h>
 
-#include "ignition_config.h"
+#include "configs/ignition_config.h"
 
 void setup_ignition_relay() {
   gpio_reset_pin(kIgnitionGpio);

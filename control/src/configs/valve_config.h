@@ -2,13 +2,7 @@
 
 #include <driver/gpio.h>
 
-enum class Valve {
-  kOxRelease,
-  kOxN2Purge,
-  kFuelRelease,
-  kFuelN2Purge,
-  kValveMax
-};
+#include "valve.h"
 
 struct ValveConfig {
   Valve valve;
