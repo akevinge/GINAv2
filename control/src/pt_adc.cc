@@ -58,5 +58,5 @@ float pt_adc_read_raw_voltage(gpio_num_t chip_select,
   mcp320x_release(handle);
 
   // Return voltage in V.
-  return voltage_mv * 1000.0f;
+  return voltage_mv / 1000.0f;
 }
