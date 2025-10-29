@@ -15,12 +15,14 @@ constexpr spi_host_device_t ADC_SPI_HOST = SPI3_HOST;
 // Number of times to sample voltage when reading.
 constexpr uint16_t PT_ADC_VOLTAGE_SAMPLE_COUNT = 400;
 
+// SPI configuration for an MCP3204 device.
 struct MP2304SpiConfig {
   gpio_num_t cs;            // Chip select
   uint16_t ref_voltage;     // Reference voltage in mV
   uint32_t clock_speed_hz;  // Clock speed
 };
 
+// SPI configurations for each MCP3204 device.
 constexpr MP2304SpiConfig MP2304_SPI_CONFIGS[] = {
     {
         .cs = GPIO_NUM_5,
@@ -34,11 +36,5 @@ constexpr MP2304SpiConfig MP2304_SPI_CONFIGS[] = {
     },
 };
 
-constexpr size_t num_unqiue_adcs() {
-  return sizeof(MP2304_SPI_CONFIGS) / sizeof(MP2304_SPI_CONFIGS[0]);
-}
-
-constexpr size_t MP2304_SPI_CONFIGS_LENGTH =
-    sizeof(MP2304_SPI_CONFIGS) / sizeof(MP2304_SPI_CONFIGS[0]);
-
+// Map of chip select GPIO to MCP3204 handle.
 static std::array<mcp320x_t*, GPIO_NUM_MAX> MP2304_HANDLES{};
