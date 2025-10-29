@@ -77,5 +77,3 @@ constexpr PtConfig PT_CONFIGS[] = {
 constexpr const PtConfig& get_pt_config(Pt pt) {
   return PT_CONFIGS[static_cast<int>(pt)];
 }
-
-
