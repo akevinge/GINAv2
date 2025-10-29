@@ -74,6 +74,7 @@ constexpr PtConfig PT_CONFIGS[] = {
     },
 };
 
+// Gets the PtConfig for the specified Pt.
 constexpr const PtConfig& get_pt_config(Pt pt) {
   return PT_CONFIGS[static_cast<int>(pt)];
 }
