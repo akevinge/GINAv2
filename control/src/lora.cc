@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cmath>
 
 #include "esp_log.h"
 #include "ra01s.h"
@@ -11,13 +12,17 @@ static const char *TAG = "LoRa";
 #ifdef CONFIG_SENDER
 void tx_task(void *pvParameters){
     ESP_LOGI(TAG, "Starting LoRa TX task");
-    uint8_t payload[255];
     while (1){
         TickType_t startTick = xTaskGetTickCount();
-        int txLen = sprintf((char*)payload, "Hello from LoRa TX at tick %u", (unsigned int)startTick);
-        ESP_LOGI(TAG, "Packet of size %d bytes sent", txLen);
+        uint8_t time = xTaskGetTickCount() % 256;
+        float angle = std::sin(time / 256.0f * 2.0f * M_PI) * 127.0f;
+        telemetry_t telemetry = {
+            .load_vout = angle,
+            .pt_reading = static_cast<uint16_t>(time * 10)
+        };
+        ESP_LOGI(TAG, "Packet of size %d bytes sent", sizeof(telemetry));
 
-        if (LoRaSend(payload, txLen, SX126x_TXMODE_SYNC) == false){
+        if (LoRaSend((uint8_t*)&telemetry, sizeof(telemetry), SX126x_TXMODE_SYNC) == false){
            ESP_LOGE(pcTaskGetName(NULL), "LoRaSend failed"); 
         }
 
@@ -40,7 +45,11 @@ void rx_task(void *pvParameters){
     while (1){
         uint8_t recLen = LoRaReceive(buf, sizeof(buf));
         if (recLen > 0){
-            ESP_LOGI(pcTaskGetName(NULL), "Received packet: %.*s", recLen, buf);
+            ESP_LOGI(pcTaskGetName(NULL), "Received packet");
+            telemetry_t recieved;
+            memcpy(&recieved, buf, sizeof(telemetry_t));
+
+            ESP_LOGI(pcTaskGetName(NULL), "Telemetry - Load Vout: %.2f, PT Reading: %d", recieved.load_vout, recieved.pt_reading);
 
             int8_t rssi, snr;
             GetPacketStatus(&rssi, &snr);
@@ -85,7 +94,7 @@ void demo_main(){
     xTaskCreate(tx_task, "LoRa_TX_Task", 4096, NULL, 5, NULL);
 #endif
 #ifndef CONFIG_SENDER
-    ESP_LOGI(TAG, "Creating LoRa TX task");
+    ESP_LOGI(TAG, "Creating LoRa RX task");
     xTaskCreate(rx_task, "LoRa_RX_Task", 4096, NULL, 5, NULL);
 #endif
 }
