@@ -10,8 +10,8 @@
 #include "load_cell.h"
 #include "pt.h"
 #include "pt_adc.h"
-#include "ra01s.h"
 #include "valve.h"
+#include "lora.h"
 
 extern "C" void app_main() {
   init_load_cell();
@@ -37,6 +37,7 @@ extern "C" void app_main() {
   // close_valve(Valve::kOxN2Purge);
   // close_valve(Valve::kFuelRelease);
 
+  /*
   init_pt_adc_spi();
   while (1) {
     // int64_t start = esp_timer_get_time();
@@ -53,5 +54,7 @@ extern "C" void app_main() {
     // printf("Function took %lld us\n", elapsed_us);
 
     vTaskDelay(pdMS_TO_TICKS(1500));
-  }
+  }*/
+
+  demo_main();
 }
