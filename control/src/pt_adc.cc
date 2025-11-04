@@ -3,10 +3,10 @@
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 #include <esp32_driver_mcp320x/mcp320x.h>
-#include <string.h>
 
 #include <array>
 #include <cstdint>
+#include <string>
 
 #include "configs/pt_adc_config.h"
 
