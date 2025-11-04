@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 
 #include "configs/pt_config.h"
 #include "esp_log.h"
@@ -16,5 +17,14 @@ float voltage_to_psi(const PtConfig& pt_config, float voltage) {
 uint16_t read_pt(Pt pt) {
   const PtConfig& pt_config = get_pt_config(pt);
   float raw_voltage = pt_adc_read_raw_voltage(pt_config.cs, pt_config.channel);
+
+  if (std::fabs(raw_voltage - pt_config.voltage_range.first) <
+      PT_VOLTAGE_TOLERANCE) {
+  }
+
+#ifdef DEBUG_PT
+  ESP_LOGI("PT", "Raw voltage for PT %d: %.3f V", static_cast<int>(pt),
+           raw_voltage);
+#endif
   return voltage_to_psi(pt_config, raw_voltage);
 }

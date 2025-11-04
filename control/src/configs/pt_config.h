@@ -7,6 +7,9 @@
 
 #include "pt.h"
 
+// Uncomment to enable pressure transducer debug logging.
+// #define DEBUG_PT
+
 struct PtConfig {
   // Chip select which identifies which ADC to read from.
   gpio_num_t cs;
@@ -25,7 +28,7 @@ struct PtConfig {
 constexpr PtConfig PT_CONFIGS[] = {
     // kChamber
     {
-        .cs = GPIO_NUM_5,
+        .cs = GPIO_NUM_4,
         .channel = MCP320X_CHANNEL_0,
         .voltage_range = {0.5, 4.5},
         .max_pressure = 1000,
