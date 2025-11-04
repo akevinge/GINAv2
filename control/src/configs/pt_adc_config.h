@@ -15,8 +15,6 @@ constexpr spi_host_device_t ADC_SPI_HOST = SPI3_HOST;
 // Number of times to sample voltage when reading.
 constexpr uint16_t PT_ADC_VOLTAGE_SAMPLE_COUNT = 400;
 constexpr uint16_t PT_ADC_MAX_VOLTAGE_MV = 5000;  // 5V reference.
-constexpr float PT_VOLTAGE_TOLERANCE =
-    0.05 * PT_ADC_MAX_VOLTAGE_MV;  // 250mV tolerance for 5V ref.
 
 // SPI configuration for an MCP3204 device.
 struct MP2304SpiConfig {
