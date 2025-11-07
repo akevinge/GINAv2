@@ -14,4 +14,4 @@ enum class Pt {
 };
 
 // Reads the pressure from the specified pressure transducer in PSI.
-uint16_t read_pt(Pt pt);
+float read_pt(Pt pt);
