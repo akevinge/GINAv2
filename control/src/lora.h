@@ -4,9 +4,10 @@
 #include "sensor_management.h"
 
 typedef struct {
-    sensor_data_t sensor_data;
-    TickType_t timestamp;
-} telemetry_t;
+    uint8_t count;  // Number of telemetry packets in this batch
+    TickType_t batch_timestamp;  // Timestamp for the whole batch
+    sensor_data_t packets[0];  // Flexible array member - will hold our telemetry packets
+} telemetry_batch_t;
 
 void configure_lora();
 #ifdef CONFIG_AWAY_SENDER
