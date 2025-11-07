@@ -17,11 +17,12 @@ void poll_sensor_task(void* pvParameters) {
   while (1) {
     sensor_data_t *data = new sensor_data_t();
     for (int i = 0; i < static_cast<int>(Pt::kPtMax); ++i) {
-      //data->pt_readings[i] = read_pt(static_cast<Pt>(i));
-      data->pt_readings[i] = 10.0f + i;  // Dummy data for testing
+      //data->pt_readings[i] = read_pt_int(static_cast<Pt>(i));
+      data->pt_readings[i] = i;  // Dummy data for testing
     }
-
+    ESP_LOGI(TAG, "Polled PT readings");
     data->load_cell_reading = 0;
+    data->timestamp = xTaskGetTickCount();
     // Send sensor data to the queue
     xQueueSend(sensor_queue, &data, portMAX_DELAY);
 
@@ -38,12 +39,12 @@ void setup_lora_tasks(){
     sensor_queue = xQueueCreate(50, sizeof(sensor_data_t)); // Queue to hold sensor data
 
     configure_lora();
-    xTaskCreatePinnedToCore(poll_sensor_task, "Poll_Sensor_Task", 4096, (void*)sensor_queue, 5, NULL, tskNO_AFFINITY);
-    xTaskCreatePinnedToCore(away_tx_task, "LoRa_TX_Task", 8192, (void*)sensor_queue, 5, NULL, tskNO_AFFINITY);
+    xTaskCreatePinnedToCore(poll_sensor_task, "Poll_Sensor_Task", 4096, (void*)sensor_queue, 5, NULL, tskIDLE_PRIORITY);
+    xTaskCreatePinnedToCore(away_tx_task, "LoRa_TX_Task", 8192, (void*)sensor_queue, 5, NULL, 1);
   #endif // CONFIG_AWAY_SENDER
   #ifdef CONFIG_HOME_RECEIVER
     ESP_LOGI(TAG, "Starting Home Receiver Configuration");
-    xTaskCreatePinnedToCore(configure_lora, "Configure_LoRa_Task", 8192, NULL, 5, NULL, tskNO_AFFINITY);
+    configure_lora();
     xTaskCreatePinnedToCore(home_rx_task, "LoRa_RX_Task", 8192, NULL, 5, NULL, tskNO_AFFINITY);
   #endif // CONFIG_HOME_RECEIVER
   #ifdef CONFIG_AWAY_RECEIVER
