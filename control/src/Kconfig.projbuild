@@ -1,0 +1,24 @@
+menu "GINAv2 Configuration"
+    choice GINA_ROLE
+		prompt "Role of the MCU being used"
+		default HOME_SENDER
+		help
+			Determines whether the MCU looks to send or recieve data, and serial out.
+		config HOME_SENDER
+			bool "HOME_SENDER"
+			help
+				Sends commands recieved over serial to AWAY.
+		config HOME_RECEIVER
+			bool "HOME_RECEIVER"
+			help
+				Recieves telemetry and error reporting from AWAY, and reports over serial.
+		config AWAY_SENDER
+			bool "AWAY_SENDER"
+			help
+				Sends telemetry and error reporting to HOME.
+		config AWAY_RECEIVER
+			bool "AWAY_RECEIVER"
+			help
+				Receives commands from HOME.
+	endchoice
+endmenu

@@ -592,6 +592,15 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# GINAv2 Configuration
+#
+CONFIG_HOME_SENDER=y
+# CONFIG_HOME_RECEIVER is not set
+# CONFIG_AWAY_SENDER is not set
+# CONFIG_AWAY_RECEIVER is not set
+# end of GINAv2 Configuration
+
+#
 # SX126X Configuration
 #
 CONFIG_GPIO_RANGE_MAX=48
