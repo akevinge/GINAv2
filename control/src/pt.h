@@ -15,3 +15,6 @@ enum class Pt {
 
 // Reads the pressure from the specified pressure transducer in PSI.
 float read_pt(Pt pt);
+
+// Reads the pressure from the specified pressure transducer as raw ADC value.
+uint16_t read_pt_int(Pt pt);
