@@ -2,8 +2,9 @@
 #define SENSOR_MANAGEMENT_H_
 
 typedef struct {
-    float pt_readings[6];
-    int load_cell_reading;
+    uint16_t pt_readings[6];
+    uint8_t load_cell_reading;
+    TickType_t timestamp;
 } sensor_data_t;
 
 #define SENSOR_QUEUE_LENGTH 50
