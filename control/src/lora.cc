@@ -9,37 +9,71 @@
 
 static const char *TAG = "LoRa";
 
-#ifdef CONFIG_SENDER
-void tx_task(void *pvParameters){
+#ifdef CONFIG_AWAY_SENDER
+void away_tx_task(void *pvParameters){
     ESP_LOGI(TAG, "Starting LoRa TX task");
+
+    QueueHandle_t sensor_queue = static_cast<QueueHandle_t>(pvParameters);
+    if (sensor_queue == NULL) {
+        ESP_LOGE(TAG, "Sensor queue NULL, killing LoRa TX task");
+        vTaskDelete(NULL);
+        return;
+    }
+
     while (1){
-        TickType_t startTick = xTaskGetTickCount();
-        uint8_t time = xTaskGetTickCount() % 256;
-        float angle = std::sin(time / 256.0f * 2.0f * M_PI) * 127.0f;
-        telemetry_t telemetry = {
-            .load_vout = angle,
-            .pt_reading = static_cast<uint16_t>(time * 10)
-        };
-        ESP_LOGI(TAG, "Packet of size %d bytes sent", sizeof(telemetry));
+        sensor_data_t sensor_data;
 
-        if (LoRaSend((uint8_t*)&telemetry, sizeof(telemetry), SX126x_TXMODE_SYNC) == false){
-           ESP_LOGE(pcTaskGetName(NULL), "LoRaSend failed"); 
+        // Block until at least one item is available
+        if (xQueueReceive(sensor_queue, &sensor_data, portMAX_DELAY) != pdTRUE){
+            ESP_LOGE(pcTaskGetName(NULL), "Failed to receive from sensor queue");
+            continue;
         }
 
-        int lost = GetPacketLost();
-        if (lost != 0){
-            ESP_LOGW(pcTaskGetName(NULL), "Packet lost count: %d", lost);
-        }
+        size_t sent_this_cycle = 0;
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        // Process the first item we just received, then drain the rest with non-blocking receives
+        do {
+            telemetry_t telemetry = {
+                .sensor_data = sensor_data,
+                .timestamp = xTaskGetTickCount()
+            };
+            ESP_LOGI(TAG, "Sending packet of size %d bytes", (int)sizeof(telemetry));
+
+            if (LoRaSend((uint8_t*)&telemetry, sizeof(telemetry), SX126x_TXMODE_SYNC) == false){
+               ESP_LOGE(pcTaskGetName(NULL), "LoRaSend failed");
+            }
+
+            int lost = GetPacketLost();
+            if (lost != 0){
+                ESP_LOGW(pcTaskGetName(NULL), "Packet lost count: %d", lost);
+            }
+
+            sent_this_cycle++;
+            // If we've reached the safety cap, stop draining further this cycle
+            if (sent_this_cycle >= MAX_DRAIN_PER_CYCLE) {
+                ESP_LOGW(TAG, "Drained %d packets this cycle (cap reached). Will continue on next cycle.", (int)sent_this_cycle);
+                break;
+            }
+
+            // Radio duty-cycle interrupt
+            if (INTER_PACKET_DELAY_TICKS > 0) {
+                vTaskDelay(INTER_PACKET_DELAY_TICKS);
+            } else {
+                taskYIELD();
+            }
+
+            // Try pull next item without blocking
+        } while (xQueueReceive(sensor_queue, &sensor_data, 0) == pdTRUE);
+
+        vTaskDelay(1000 / LORA_TRANSFER_RATE_HZ);
     }
 
     vTaskDelete(NULL);
 }
-#endif // CONFIG_SENDER
+#endif // CONFIG_AWAY_SENDER
 
-#ifndef CONFIG_SENDER
-void rx_task(void *pvParameters){
+#ifdef CONFIG_HOME_RECEIVER
+void home_rx_task(void *pvParameters){
     ESP_LOGI(TAG, "Starting LoRa RX task");
     uint8_t buf[255];
     while (1){
@@ -49,7 +83,15 @@ void rx_task(void *pvParameters){
             telemetry_t recieved;
             memcpy(&recieved, buf, sizeof(telemetry_t));
 
-            ESP_LOGI(pcTaskGetName(NULL), "Telemetry - Load Vout: %.2f, PT Reading: %d", recieved.load_vout, recieved.pt_reading);
+            ESP_LOGI(TAG, "Telemetry Data - Timestamp: %u, PT Readings: [%.2f, %.2f, %.2f, %.2f, %.2f, %.2f], Load Cell: %d",
+                     recieved.timestamp,
+                     recieved.sensor_data.pt_readings[0],
+                     recieved.sensor_data.pt_readings[1],
+                     recieved.sensor_data.pt_readings[2],
+                     recieved.sensor_data.pt_readings[3],
+                     recieved.sensor_data.pt_readings[4],
+                     recieved.sensor_data.pt_readings[5],
+                     recieved.sensor_data.load_cell_reading);
 
             int8_t rssi, snr;
             GetPacketStatus(&rssi, &snr);
@@ -61,9 +103,9 @@ void rx_task(void *pvParameters){
 
     vTaskDelete(NULL);
 }
-#endif // !CONFIG_SENDER
+#endif // CONFIG_HOME_RECEIVER
 
-void demo_main(){
+void configure_lora(){
     LoRaInit();
     //Driver setup configuration
     int8_t txPowerInDbm = 22;
@@ -88,13 +130,4 @@ void demo_main(){
     bool invertIrq = false;
 
     LoRaConfig(spreadingFactor, bandwidth, codingRate, preambleLength, payloadLen, crcOn, invertIrq);
-
-#ifdef CONFIG_SENDER
-    ESP_LOGI(TAG, "Creating LoRa TX task");
-    xTaskCreate(tx_task, "LoRa_TX_Task", 4096, NULL, 5, NULL);
-#endif
-#ifndef CONFIG_SENDER
-    ESP_LOGI(TAG, "Creating LoRa RX task");
-    xTaskCreate(rx_task, "LoRa_RX_Task", 4096, NULL, 5, NULL);
-#endif
 }
