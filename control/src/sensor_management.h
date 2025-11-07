@@ -8,6 +8,6 @@ typedef struct {
 } sensor_data_t;
 
 #define SENSOR_QUEUE_LENGTH 50
-#define SENSOR_SAMPLE_RATE_HZ 100
+#define SENSOR_SAMPLE_RATE_HZ 50
 
 #endif  // SENSOR_MANAGEMENT_H_

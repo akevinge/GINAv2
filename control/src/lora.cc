@@ -92,7 +92,7 @@ void home_rx_task(void *pvParameters){
                 ESP_LOGI(TAG, "Received batch with %d packets, total size %d bytes", recieved->count, recLen);
                 for (uint8_t i = 0; i < recieved->count; ++i){
                     sensor_data_t& data = recieved->packets[i];
-                    ESP_LOGI(TAG, "Packet %d - Timestamp: %u, PT Readings: [%.2f, %.2f, %.2f, %.2f, %.2f, %.2f], Load Cell: %d",
+                    ESP_LOGI(TAG, "Packet %d - Timestamp: %d, PT Readings: [%d, %d, %d, %d, %d, %d], Load Cell: %d",
                              i,
                              data.timestamp,
                              data.pt_readings[0],

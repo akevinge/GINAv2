@@ -26,7 +26,7 @@ void poll_sensor_task(void* pvParameters) {
     // Send sensor data to the queue
     xQueueSendToFront(sensor_queue, &data, portMAX_DELAY); // Send to front, we want to prioritize latest data
 
-    vTaskDelay(pdMS_TO_TICKS(1000 / SENSOR_SAMPLE_RATE_HZ));  // 100 Hz Sampling Rate
+    vTaskDelay(pdMS_TO_TICKS(1000 / SENSOR_SAMPLE_RATE_HZ));
   }
 }
 #endif // CONFIG_AWAY_SENDER
