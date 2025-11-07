@@ -23,3 +23,13 @@ float read_pt(Pt pt) {
 #endif
   return voltage_to_psi(pt_config, raw_voltage);
 }
+
+uint16_t read_pt_int(Pt pt) {
+  const PtConfig& pt_config = get_pt_config(pt);
+  float raw_voltage = pt_adc_read_raw_voltage_int(pt_config.cs, pt_config.channel);
+#ifdef DEBUG_PT
+  ESP_LOGI("PT", "Raw voltage for PT %d: %.3f V", static_cast<int>(pt),
+           raw_voltage);
+#endif
+  return raw_voltage;
+}

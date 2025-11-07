@@ -40,6 +40,25 @@ void init_pt_adc_spi() {
   }
 }
 
+uint16_t pt_adc_read_raw_voltage_int(gpio_num_t chip_select,
+                                   mcp320x_channel_t channel) {
+  mcp320x_t* handle = MP2304_HANDLES[chip_select];
+  assert(handle != nullptr &&
+         "Attempting to read from ADC without initializing first");
+
+  // Occupy the SPI bus for multiple transactions.
+  mcp320x_acquire(handle, portMAX_DELAY);
+
+  uint16_t voltage_mv = 0;
+  mcp320x_sample_voltage(handle, channel, MCP320X_READ_MODE_SINGLE,
+                         PT_ADC_VOLTAGE_SAMPLE_COUNT, &voltage_mv);
+
+  // Unoccupy the SPI bus.
+  mcp320x_release(handle);
+
+  return voltage_mv;
+}
+
 float pt_adc_read_raw_voltage(gpio_num_t chip_select,
                               mcp320x_channel_t channel) {
   mcp320x_t* handle = MP2304_HANDLES[chip_select];
