@@ -20,26 +20,44 @@ void away_tx_task(void *pvParameters){
         return;
     }
 
-    while (1){
-        sensor_data_t sensor_data;
+    const size_t batch_overhead = sizeof(telemetry_batch_t);
+    const size_t max_packets_per_batch = (LORA_MAX_PAYLOAD_SIZE - batch_overhead) / sizeof(sensor_data_t);
+    ESP_LOGI(TAG, "Max packets per batch: %d", (int)max_packets_per_batch);
+    const size_t telemetry_size = batch_overhead + max_packets_per_batch * sizeof(sensor_data_t);
+    uint8_t *telemetry_buffer = static_cast<uint8_t*>(pvPortMalloc(telemetry_size));
 
-        // Block until at least one item is available
-        if (xQueueReceive(sensor_queue, &sensor_data, portMAX_DELAY) != pdTRUE){
-            ESP_LOGE(pcTaskGetName(NULL), "Failed to receive from sensor queue");
-            continue;
+    telemetry_batch_t *telemetry = reinterpret_cast<telemetry_batch_t*>(telemetry_buffer);
+    while (1){
+        TickType_t start_time = xTaskGetTickCount();
+        
+        size_t packets_in_batch = 0;
+        telemetry->count = 0;
+        telemetry->batch_timestamp = xTaskGetTickCount();
+        
+        while(packets_in_batch < max_packets_per_batch){
+            sensor_data_t sensor_data;
+            // Block until at least one item is available
+            if (xQueueReceive(sensor_queue, &sensor_data, portMAX_DELAY) != pdTRUE){
+                ESP_LOGE(pcTaskGetName(NULL), "Failed to receive from sensor queue");
+                continue;
+            }
+
+            // Copy sensor data into the batch
+            telemetry->packets[packets_in_batch] = sensor_data;
+            packets_in_batch++;
+            telemetry->count = packets_in_batch;
+
+            if (xQueueReceive(sensor_queue, &sensor_data, 0) != pdTRUE){
+                break; // No more items available right now
+            }
         }
 
-        size_t sent_this_cycle = 0;
-
-        // Process the first item we just received, then drain the rest with non-blocking receives
-        do {
-            telemetry_t telemetry = {
-                .sensor_data = sensor_data,
-                .timestamp = xTaskGetTickCount()
-            };
-            ESP_LOGI(TAG, "Sending packet of size %d bytes", (int)sizeof(telemetry));
-
-            if (LoRaSend((uint8_t*)&telemetry, sizeof(telemetry), SX126x_TXMODE_SYNC) == false){
+        // If we received any packets, send the batch
+        if (packets_in_batch > 0){
+            const size_t batch_size = batch_overhead + packets_in_batch * sizeof(sensor_data_t);
+            ESP_LOGI(TAG, "Prepared batch with %d packets, total size %d bytes", (int)packets_in_batch, (int)batch_size);
+            start_time = xTaskGetTickCount();
+            if (LoRaSend((uint8_t*)telemetry, batch_size, SX126x_TXMODE_SYNC) == false){
                ESP_LOGE(pcTaskGetName(NULL), "LoRaSend failed");
             }
 
@@ -48,24 +66,11 @@ void away_tx_task(void *pvParameters){
                 ESP_LOGW(pcTaskGetName(NULL), "Packet lost count: %d", lost);
             }
 
-            sent_this_cycle++;
-            // If we've reached the safety cap, stop draining further this cycle
-            if (sent_this_cycle >= MAX_DRAIN_PER_CYCLE) {
-                ESP_LOGW(TAG, "Drained %d packets this cycle (cap reached). Will continue on next cycle.", (int)sent_this_cycle);
-                break;
-            }
+            TickType_t end_time = xTaskGetTickCount();
+            ESP_LOGI(TAG, "Transmission cycle took %lu ms", (end_time - start_time) * portTICK_PERIOD_MS);
+        }
 
-            // Radio duty-cycle interrupt
-            if (INTER_PACKET_DELAY_TICKS > 0) {
-                vTaskDelay(INTER_PACKET_DELAY_TICKS);
-            } else {
-                taskYIELD();
-            }
-
-            // Try pull next item without blocking
-        } while (xQueueReceive(sensor_queue, &sensor_data, 0) == pdTRUE);
-
-        vTaskDelay(1000 / LORA_TRANSFER_RATE_HZ);
+        vTaskDelay(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ));
     }
 
     vTaskDelete(NULL);
@@ -78,27 +83,36 @@ void home_rx_task(void *pvParameters){
     uint8_t buf[255];
     while (1){
         uint8_t recLen = LoRaReceive(buf, sizeof(buf));
-        if (recLen > 0){
+        if (recLen > sizeof(telemetry_batch_t)){
             ESP_LOGI(pcTaskGetName(NULL), "Received packet");
-            telemetry_t recieved;
-            memcpy(&recieved, buf, sizeof(telemetry_t));
-
-            ESP_LOGI(TAG, "Telemetry Data - Timestamp: %u, PT Readings: [%.2f, %.2f, %.2f, %.2f, %.2f, %.2f], Load Cell: %d",
-                     recieved.timestamp,
-                     recieved.sensor_data.pt_readings[0],
-                     recieved.sensor_data.pt_readings[1],
-                     recieved.sensor_data.pt_readings[2],
-                     recieved.sensor_data.pt_readings[3],
-                     recieved.sensor_data.pt_readings[4],
-                     recieved.sensor_data.pt_readings[5],
-                     recieved.sensor_data.load_cell_reading);
+            telemetry_batch_t* recieved = reinterpret_cast<telemetry_batch_t*>(buf);
+            const size_t expected_size = sizeof(telemetry_batch_t) + recieved->count * sizeof(sensor_data_t);
+            
+            if (recLen == expected_size){
+                ESP_LOGI(TAG, "Received batch with %d packets, total size %d bytes", recieved->count, recLen);
+                for (uint8_t i = 0; i < recieved->count; ++i){
+                    sensor_data_t& data = recieved->packets[i];
+                    ESP_LOGI(TAG, "Packet %d - Timestamp: %u, PT Readings: [%.2f, %.2f, %.2f, %.2f, %.2f, %.2f], Load Cell: %d",
+                             i,
+                             data.timestamp,
+                             data.pt_readings[0],
+                             data.pt_readings[1],
+                             data.pt_readings[2],
+                             data.pt_readings[3],
+                             data.pt_readings[4],
+                             data.pt_readings[5],
+                             data.load_cell_reading);
+                }
+            } else {
+                ESP_LOGE(pcTaskGetName(NULL), "Received batch size mismatch: expected %d bytes but got %d bytes", (int)expected_size, (int)recLen);
+            }
 
             int8_t rssi, snr;
             GetPacketStatus(&rssi, &snr);
             ESP_LOGI(pcTaskGetName(NULL), "Received packet of size %d bytes, RSSI: %d dBm, SNR: %d dB", recLen, rssi, snr);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
     }
 
     vTaskDelete(NULL);
@@ -120,12 +134,12 @@ void configure_lora(){
         ESP_LOGE(TAG, "Lora initialized successfully.");
     }
 
-    // LoRa transmission configuration
+    // LoRa transmission configuration - Minimum range + security and maximum rate at 7, 6, 1, 8, 0
     uint8_t spreadingFactor = 7;
-    uint8_t bandwidth = 4;
+    uint8_t bandwidth = 6; // Maximum BW of 500 kHz at 6
     uint8_t codingRate = 1;
     uint16_t preambleLength = 8;
-    uint8_t payloadLen = 0;
+    uint8_t payloadLen = 0; // 0 for variable length
     bool crcOn = true;
     bool invertIrq = false;
 

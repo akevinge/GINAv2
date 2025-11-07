@@ -24,7 +24,7 @@ void poll_sensor_task(void* pvParameters) {
     data->load_cell_reading = 0;
     data->timestamp = xTaskGetTickCount();
     // Send sensor data to the queue
-    xQueueSend(sensor_queue, &data, portMAX_DELAY);
+    xQueueSendToFront(sensor_queue, &data, portMAX_DELAY); // Send to front, we want to prioritize latest data
 
     vTaskDelay(pdMS_TO_TICKS(1000 / SENSOR_SAMPLE_RATE_HZ));  // 100 Hz Sampling Rate
   }
