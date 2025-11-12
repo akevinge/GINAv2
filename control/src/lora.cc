@@ -27,36 +27,31 @@ void away_tx_task(void *pvParameters){
     uint8_t *telemetry_buffer = static_cast<uint8_t*>(pvPortMalloc(telemetry_size));
 
     telemetry_batch_t *telemetry = reinterpret_cast<telemetry_batch_t*>(telemetry_buffer);
+    
+    TickType_t start_time = xTaskGetTickCount();
+    int totalSent = 0;
     while (1){
-        TickType_t start_time = xTaskGetTickCount();
-        
         size_t packets_in_batch = 0;
         telemetry->count = 0;
         telemetry->batch_timestamp = xTaskGetTickCount();
-        
-        while(packets_in_batch < max_packets_per_batch){
-            sensor_data_t sensor_data;
-            // Block until at least one item is available
-            if (xQueueReceive(sensor_queue, &sensor_data, portMAX_DELAY) != pdTRUE){
-                ESP_LOGE(pcTaskGetName(NULL), "Failed to receive from sensor queue");
-                continue;
-            }
+        sensor_data_t sensor_data;
 
+        while(packets_in_batch < max_packets_per_batch && xQueueReceive(sensor_queue, &sensor_data, pdMS_TO_TICKS(10)) == pdPASS){
+            UBaseType_t inqueue = uxQueueMessagesWaiting(sensor_queue);
+            ESP_LOGE(TAG, "%d in queue", inqueue);
+            
             // Copy sensor data into the batch
             telemetry->packets[packets_in_batch] = sensor_data;
             packets_in_batch++;
             telemetry->count = packets_in_batch;
-
-            if (xQueueReceive(sensor_queue, &sensor_data, 0) != pdTRUE){
-                break; // No more items available right now
-            }
         }
 
         // If we received any packets, send the batch
         if (packets_in_batch > 0){
             const size_t batch_size = batch_overhead + packets_in_batch * sizeof(sensor_data_t);
             ESP_LOGI(TAG, "Prepared batch with %d packets, total size %d bytes", (int)packets_in_batch, (int)batch_size);
-            start_time = xTaskGetTickCount();
+
+            totalSent+= packets_in_batch;
             if (LoRaSend((uint8_t*)telemetry, batch_size, SX126x_TXMODE_SYNC) == false){
                ESP_LOGE(pcTaskGetName(NULL), "LoRaSend failed");
             }
@@ -67,10 +62,15 @@ void away_tx_task(void *pvParameters){
             }
 
             TickType_t end_time = xTaskGetTickCount();
+
+            if (end_time - start_time > 100){
+                ESP_LOGE(TAG, "Total of %d samples sent over last second", totalSent);
+                start_time = xTaskGetTickCount();
+                totalSent = 0;
+            }
+
             ESP_LOGI(TAG, "Transmission cycle took %lu ms", (end_time - start_time) * portTICK_PERIOD_MS);
         }
-
-        vTaskDelay(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ));
     }
 
     vTaskDelete(NULL);
