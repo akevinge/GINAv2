@@ -9,11 +9,19 @@
 
 static const char *TAG = "LoRa";
 
+typedef struct {
+    uint8_t address;
+    uint8_t target;
+    uint8_t command_type;
+    uint32_t parameters[4];
+} command_t;
+
 #ifdef CONFIG_AWAY_SENDER
 void away_tx_task(void *pvParameters){
     ESP_LOGI(TAG, "Starting LoRa TX task");
 
     QueueHandle_t sensor_queue = static_cast<QueueHandle_t>(pvParameters);
+    
     if (sensor_queue == NULL) {
         ESP_LOGE(TAG, "Sensor queue NULL, killing LoRa TX task");
         vTaskDelete(NULL);
@@ -81,6 +89,7 @@ void away_tx_task(void *pvParameters){
 void home_rx_task(void *pvParameters){
     ESP_LOGI(TAG, "Starting LoRa RX task");
     uint8_t buf[255];
+    TickType_t xLastWakeTime = xTaskGetTickCount();
     while (1){
         uint8_t recLen = LoRaReceive(buf, sizeof(buf));
         if (recLen > sizeof(telemetry_batch_t)){
@@ -112,18 +121,70 @@ void home_rx_task(void *pvParameters){
             ESP_LOGI(pcTaskGetName(NULL), "Received packet of size %d bytes, RSSI: %d dBm, SNR: %d dB", recLen, rssi, snr);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
     }
 
     vTaskDelete(NULL);
 }
 #endif // CONFIG_HOME_RECEIVER
 
+#ifdef CONFIG_HOME_SENDER
+void home_tx_task(void *pvParameters){
+    QueueHandle_t command_queue = static_cast<QueueHandle_t>(pvParameters);
+
+    if (command_queue == NULL) {
+        ESP_LOGE(TAG, "Command queue NULL, killing LoRa TX task");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    while (1){
+        command_t command;
+        if (xQueueReceive(command_queue, &command, portMAX_DELAY) == pdPASS){
+            ESP_LOGI(TAG, "Sending command to target %d, type %d", command.target, command.command_type);
+            uint8_t buffer[sizeof(command_t)];
+            memcpy(buffer, &command, sizeof(command_t));
+
+            if (LoRaSend(buffer, sizeof(command_t), SX126x_TXMODE_SYNC) == false){
+               ESP_LOGE(pcTaskGetName(NULL), "LoRaSend failed");
+            } else {
+                ESP_LOGI(pcTaskGetName(NULL), "Command sent successfully");
+            }
+        }
+    }
+
+    vTaskDelete(NULL);
+}
+#endif // CONFIG_HOME_SENDER
+
+#ifdef CONFIG_AWAY_RECEIVER
+void away_rx_task(void *pvParameters){
+    ESP_LOGI(TAG, "Starting LoRa RX task");
+    uint8_t buf[255];
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    while (1){
+        uint8_t recLen = LoRaReceive(buf, sizeof(buf));
+        if (recLen == sizeof(command_t)){
+            command_t* recieved = reinterpret_cast<command_t*>(buf);
+            ESP_LOGI(pcTaskGetName(NULL), "Received command for target %d, type %d", recieved->target, recieved->command_type);
+        }
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
+    }
+    vTaskDelete(NULL);
+}
+#endif // CONFIG_AWAY_RECEIVER
+
 void configure_lora(){
     LoRaInit();
     //Driver setup configuration
     int8_t txPowerInDbm = 22;
-    int32_t frequencyInHz = 433000000;
+    int32_t frequencyInHz;
+    #ifdef CONFIG_AWAY_SENDER || CONFIG_HOME_RECEIVER
+    frequencyInHz = 911000000;
+    #endif // CONFIG_AWAY_SENDER || CONFIG_AWAY_RECEIVER
+    #ifdef CONFIG_HOME_SENDER || CONFIG_AWAY_RECEIVER
+    frequencyInHz = 913000000;
+    #endif // CONFIG_HOME_SENDER || CONFIG_AWAY_RECEIVER
     float tcxoVoltage = 3.3;
     bool useRegulatorLDO = true;
 
