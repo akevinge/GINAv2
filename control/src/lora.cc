@@ -9,13 +9,6 @@
 
 static const char *TAG = "LoRa";
 
-typedef struct {
-    uint8_t address;
-    uint8_t target;
-    uint8_t command_type;
-    uint32_t parameters[4];
-} command_t;
-
 #ifdef CONFIG_AWAY_SENDER
 void away_tx_task(void *pvParameters){
     ESP_LOGI(TAG, "Starting LoRa TX task");
@@ -174,35 +167,22 @@ void away_rx_task(void *pvParameters){
 }
 #endif // CONFIG_AWAY_RECEIVER
 
-void configure_lora(){
-    LoRaInit();
-    //Driver setup configuration
-    int8_t txPowerInDbm = 22;
-    int32_t frequencyInHz;
-    #ifdef CONFIG_AWAY_SENDER || CONFIG_HOME_RECEIVER
-    frequencyInHz = 911000000;
-    #endif // CONFIG_AWAY_SENDER || CONFIG_AWAY_RECEIVER
-    #ifdef CONFIG_HOME_SENDER || CONFIG_AWAY_RECEIVER
-    frequencyInHz = 913000000;
-    #endif // CONFIG_HOME_SENDER || CONFIG_AWAY_RECEIVER
-    float tcxoVoltage = 3.3;
-    bool useRegulatorLDO = true;
-
+void lora_begin_config(){
     ESP_LOGE(TAG, "Initializing LoRa module...");
-    if (LoRaBegin(frequencyInHz, txPowerInDbm, tcxoVoltage, useRegulatorLDO) != 0) {
+    if (LoRaBegin(LORA_FREQUENCY_HZ, LORA_TX_POWER_DBM, LORA_TCXO_VOLTAGE, LORA_USE_REGULATOR_LDO) != 0) {
         ESP_LOGI(TAG, "Module not recognized.");
     } else {
         ESP_LOGE(TAG, "Lora initialized successfully.");
     }
+}
+
+void configure_lora(){
+    LoRaInit();
+    //Driver setup configuration
+    lora_begin_config();
 
     // LoRa transmission configuration - Minimum range + security and maximum rate at 7, 6, 1, 8, 0
-    uint8_t spreadingFactor = 7;
-    uint8_t bandwidth = 6; // Maximum BW of 500 kHz at 6
-    uint8_t codingRate = 1;
-    uint16_t preambleLength = 8;
-    uint8_t payloadLen = 0; // 0 for variable length
-    bool crcOn = true;
-    bool invertIrq = false;
 
-    LoRaConfig(spreadingFactor, bandwidth, codingRate, preambleLength, payloadLen, crcOn, invertIrq);
+
+    LoRaConfig(LORA_SPREADING_FACTOR, LORA_BANDWIDTH, LORA_CODING_RATE, LORA_PREAMBLE_LENGTH, LORA_MAX_PAYLOAD_SIZE, LORA_CRC_ON, LORA_INVERT_IRQ);
 }

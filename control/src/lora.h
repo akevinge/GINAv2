@@ -4,6 +4,13 @@
 #include "sensor_management.h"
 
 typedef struct {
+    uint8_t address;
+    uint8_t target;
+    uint8_t command_type;
+    uint32_t parameters[4];
+} command_t;
+
+typedef struct {
     uint8_t count;  // Number of telemetry packets in this batch
     TickType_t batch_timestamp;  // Timestamp for the whole batch
     sensor_data_t packets[0];  // Flexible array member - will hold our telemetry packets
