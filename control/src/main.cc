@@ -1,14 +1,22 @@
+#include <hx711.h>
+
+#include <cstdint>
+
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "ignition.h"
+#include "load_cell.h"
 #include "pt.h"
 #include "pt_adc.h"
 #include "ra01s.h"
 #include "valve.h"
 
 extern "C" void app_main() {
+  init_load_cell();
+  uint32_t value;
+  read_raw_load_cell(&value);
   // LoRaInit();
 
   // setup_ignition_relay();
