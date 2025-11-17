@@ -1,8 +1,17 @@
 #include "uartcom.h"
+#include "lora.h"
+#include "driver/usb_serial_jtag.h"
+#include "esp_log.h"
+
+static const char *TAG = "UARTCOM";
 
 #ifdef CONFIG_HOME_SENDER
 void home_com_monitor_task(void *pvParameters){
-    char buf[128];
+    usb_serial_jtag_driver_config_t config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+    esp_err_t err = usb_serial_jtag_driver_install(&config);                    
+    ESP_ERROR_CHECK(err);
+
+    char buf[256];
     int len = 0;
 
     while (1){
@@ -15,7 +24,6 @@ void home_com_monitor_task(void *pvParameters){
             command.address = 0x01; // Example address
             command.target = 0x02;  // Example target
             command.command_type = 0x03; // Example command type
-
             // Send command to LoRa TX task
         }
     }

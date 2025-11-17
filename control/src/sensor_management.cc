@@ -1,3 +1,7 @@
+#include "sensor_management.h"
+#include "pt.h"
+#include "pt_adc.h"
+
 #ifdef CONFIG_AWAY_SENDER
 void poll_sensor_task(void* pvParameters) {
   QueueHandle_t sensor_queue = static_cast<QueueHandle_t>(pvParameters);
