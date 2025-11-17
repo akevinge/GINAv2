@@ -1,7 +1,11 @@
 #include <hx711.h>
+#include <stdio.h>
 
 #include <cstdint>
 
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+#include "esp_adc/adc_oneshot.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -12,13 +16,29 @@
 #include "pt.h"
 #include "pt_adc.h"
 #include "sensor_management.h"
+#include "uartcom.h"
 #include "valve.h"
 
-static const char* TAG = "MAIN";
+#define SENSOR1_PIN ADC_CHANNEL_3  // Example: GPIO4  (ADC1_CH3)
+#define SENSOR2_PIN ADC_CHANNEL_4  // Example: GPIO5  (ADC1_CH4)
 
-typedef struct {
-  uint8_t command_type;
-} command_t;
+static const char* TAG = "MAIN";
+static adc_cali_handle_t adc_cali_handle = NULL;
+
+static bool init_adc_calibration(adc_unit_t unit,
+                                 adc_cali_handle_t* out_handle) {
+  adc_cali_curve_fitting_config_t cali_config = {
+      .unit_id = unit,
+      .atten = ADC_ATTEN_DB_11,
+      .bitwidth = ADC_BITWIDTH_12,
+  };
+  return (adc_cali_create_scheme_curve_fitting(&cali_config, out_handle) ==
+          ESP_OK);
+}
+
+void command_exe_task(void* pvParameters) {
+  QueueHandle_t command_queue = static_cast<QueueHandle_t>(pvParameters);
+}
 
 void setup_lora_tasks() {
 #ifdef CONFIG_AWAY_SENDER
@@ -42,16 +62,29 @@ void setup_lora_tasks() {
 #endif  // CONFIG_HOME_RECEIVER
 #ifdef CONFIG_AWAY_RECEIVER
   ESP_LOGI(TAG, "Starting Away Receiver Configuration");
-  QueueHandle_t command_queue;
 
+  QueueHandle_t command_queue;
   command_queue =
       xQueueCreate(20, sizeof(command_t));  // Queue to hold incoming commands
-#endif                                      // CONFIG_AWAY_RECEIVER
+
+  configure_lora();
+  xTaskCreatePinnedToCore(away_rx_task, "Away_RX_Task", 8192, NULL, 5, NULL,
+                          tskNO_AFFINITY);
+  xTaskCreatePinnedToCore(command_exe_task, "Command_Exe_Task", 8192, NULL, 5,
+                          NULL, tskNO_AFFINITY);
+#endif  // CONFIG_AWAY_RECEIVER
 #ifdef CONFIG_HOME_SENDER
   ESP_LOGI(TAG, "Starting Home Sender Configuration");
-  /*
-  TODO: Implement sender task that reads commands from serial and relays to AWAY
-  */
+
+  QueueHandle_t command_queue;
+  command_queue =
+      xQueueCreate(20, sizeof(command_t));  // Queue to hold commands from COM
+
+  configure_lora();
+  xTaskCreatePinnedToCore(home_com_monitor_task, "Home_Com_Monitor_Task", 4096,
+                          (void*)command_queue, 1, NULL, tskNO_AFFINITY);
+  xTaskCreatePinnedToCore(home_tx_task, "Home_TX_Task", 8192,
+                          (void*)command_queue, 5, NULL, tskNO_AFFINITY);
 #endif  // CONFIG_HOME_SENDER
 }
 
