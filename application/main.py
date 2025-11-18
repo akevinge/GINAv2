@@ -23,6 +23,23 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QDockWidget
 #
 # Adjust command format to match your MCU's firmware protocol if needed.
 
+#define COMMAND_TARGET_SERVO 0x00
+COMMAND_TARGET_SERVO = 0x00
+#define COMMAND_TARGET_IGNITER 0x01
+COMMAND_TARGET_IGNITER = 0x01
+
+#define COMMAND_ACTION_SERVO_CLOSE 0x00
+COMMAND_ACTION_SERVO_CLOSE = 0x00
+#define COMMAND_ACTION_SERVO_OPEN 0x01
+COMMAND_ACTION_SERVO_OPEN = 0x01
+#define COMMAND_ACTION_SERVO_SET 0x02
+COMMAND_ACTION_SERVO_SET = 0x02
+
+#define COMMAND_ACTION_IGNITER_START 0x00
+COMMAND_ACTION_IGNITER_START = 0x00
+
+#define COMMAND_PARAM_SERVO_ALL 0xFF
+COMMAND_PARAM_SERVO_ALL = 0xFF
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -396,13 +413,12 @@ class MainWindow(QMainWindow):
                 pass
         event.accept()
 
-    def send_command(self, cmd: str):
+    def send_command(self, cmd: bytearray):
         if not (self._serial and self._serial.is_open):
             QMessageBox.warning(self, "Not connected", "Serial port is not connected.")
             return
-        full = cmd.strip() + "\n"
         try:
-            self._serial.write(full.encode())
+            self._serial.write(cmd)
             self.log(f"TX: {cmd}")
         except Exception as e:
             self.log(f"Write failed: {e}")
@@ -417,33 +433,39 @@ class MainWindow(QMainWindow):
         self._update_valve_buttons()
 
     def close_all_valves(self):
-        self.send_command("CLOSE_ALL_VALVES")
+        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, COMMAND_PARAM_SERVO_ALL])
+        self.send_command(values)
         self.valve_states = [False] * self.VALVE_COUNT
         self._update_valve_buttons()
 
     def start_igniter(self):
-        self.send_command("START_IGNITER")
+        values = bytearray([COMMAND_TARGET_IGNITER, COMMAND_ACTION_IGNITER_START, 0x00])
+        self.send_command(values)
 
     def toggle_valve(self):
+        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, COMMAND_PARAM_SERVO_ALL])
+        self.send_command(values)
         btn = self.sender()
         if not isinstance(btn, QPushButton):
             return
         idx = int(btn.property("index"))
         new_state = btn.isChecked()
         cmd = f"OPEN_VALVE {idx}" if new_state else f"CLOSE_VALVE {idx}"
-        self.send_command(cmd)
+        self.send_command(values)
         self.valve_states[idx] = new_state
         self._update_valve_buttons()
 
     def direct_open(self):
+        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, COMMAND_PARAM_SERVO_ALL])
+        self.send_command(values)
         idx = self.direct_spin.value()
-        self.send_command(f"OPEN_VALVE {idx}")
         self.valve_states[idx] = True
         self._update_valve_buttons()
 
     def direct_close(self):
         idx = self.direct_spin.value()
-        self.send_command(f"CLOSE_VALVE {idx}")
+        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, COMMAND_PARAM_SERVO_ALL])
+        self.send_command(values)
         self.valve_states[idx] = False
         self._update_valve_buttons()
 
