@@ -4,7 +4,6 @@
 #include "sensor_management.h"
 
 typedef struct {
-    uint8_t address;
     uint8_t target;
     uint8_t command_type;
     uint32_t parameters[4];

@@ -16,31 +16,29 @@ void home_com_monitor_task(void* pvParameters) {
                             .stop_bits = UART_STOP_BITS,
                             .flow_ctrl = UART_FLOW_CTRL};
 
-  ESP_ERROR_CHECK(uart_driver_install(UART_PORT, UART_RX_BUF_SIZE,
-                                      UART_TX_BUF_SIZE, 0, NULL, 0));
+  uart_driver_install(UART_PORT, UART_RX_BUF_SIZE,
+                                      UART_TX_BUF_SIZE, 0, NULL, 0);
   ESP_ERROR_CHECK(uart_param_config(UART_PORT, &uart_cfg));
   ESP_ERROR_CHECK(uart_set_pin(UART_PORT, UART_TX_PIN, UART_RX_PIN,
                                UART_RTS_PIN, UART_CTS_PIN));
 
-  char buf[256];
+  uint8_t buf[256];
   int len = 0;
 
   while (1) {
     // Read bytes from UART0, with a timeout of 100ms
-    len = uart_read_bytes(UART_NUM_0, (uint8_t*)buf, sizeof(buf) - 1,
+    len = uart_read_bytes(UART_NUM_0, buf, sizeof(buf) - 1,
                           pdMS_TO_TICKS(100));
 
     if (len > 0) {
-      buf[len] = '\0';  // Null terminate
-      ESP_LOGI(pcTaskGetName(NULL), "Received command: %s", buf);
-
-      // TODO: Parse command to command_t structure
-      command_t command;
-      command.address = 0x01;       // Example address
-      command.target = 0x02;        // Example target
-      command.command_type = 0x03;  // Example command type
-
-      // TODO: Send command to LoRa TX task
+        // TODO: Parse command to command_t structure
+        command_t command;
+        command.target = buf[0];        // Example target
+        command.command_type = buf[1];  // Example command type
+        memccpy(command.parameters, buf + 2, 0, 4 * sizeof(uint32_t)); // Example parameters
+        ESP_LOGI(TAG, "Received command from UART: target=%d, type=%d",
+                 command.target, command.command_type);
+        // TODO: Send command to LoRa TX task
     }
   }
 

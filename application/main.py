@@ -334,10 +334,11 @@ class MainWindow(QMainWindow):
         self.port_combo.clear()
         ports = serial.tools.list_ports.comports()
         for p in ports:
-            self.port_combo.addItem(f"{p.device} - {p.description}", p.device)
+            # label ports as UART devices in the UI
+            self.port_combo.addItem(f"UART: {p.device} - {p.description}", p.device)
         if self.port_combo.count() == 0:
-            self.port_combo.addItem("No ports found", "")
-        self.log("Port list refreshed")
+            self.port_combo.addItem("No UART ports found", "")
+        self.log("UART port list refreshed")
 
     def toggle_connection(self):
         if self._serial and self._serial.is_open:
@@ -348,8 +349,13 @@ class MainWindow(QMainWindow):
     def connect_serial(self):
         port_data = self.port_combo.currentData()
         port = port_data if port_data else self.port_combo.currentText()
+        # if the displayed text contains the "UART:" prefix, strip it
+        if isinstance(port, str) and port.startswith("UART:"):
+            # expected format "UART: <device> - <desc>"
+            parts = port.split(":", 1)[1].strip().split(" - ", 1)
+            port = parts[0].strip() if parts else port
         if not port:
-            QMessageBox.warning(self, "No Port", "Select a valid serial port first.")
+            QMessageBox.warning(self, "No Port", "Select a valid UART port first.")
             return
         try:
             baud = int(self.baud_input.text())
@@ -357,9 +363,10 @@ class MainWindow(QMainWindow):
             baud = self.DEFAULT_BAUD
             self.baud_input.setText(str(baud))
         try:
-            self._serial = serial.Serial(port=port.split(" - ")[0].strip(), baudrate=baud, timeout=0.1)
+            # open as a UART device (uses same pyserial Serial API)
+            self._serial = serial.Serial(port=port.strip(), baudrate=baud, timeout=0.1)
         except Exception as e:
-            QMessageBox.critical(self, "Connection Error", f"Could not open port: {e}")
+            QMessageBox.critical(self, "Connection Error", f"Could not open UART port: {e}")
             self.log(f"Failed to open {port}: {e}")
             self._serial = None
             return
@@ -370,8 +377,8 @@ class MainWindow(QMainWindow):
         self._reader.start()
 
         self.connect_btn.setText("Disconnect")
-        self.status_label.setText(f"Connected: {self._serial.port} @ {self._serial.baudrate}")
-        self.log(f"Connected to {self._serial.port} @ {self._serial.baudrate}")
+        self.status_label.setText(f"Connected (UART): {self._serial.port} @ {self._serial.baudrate}")
+        self.log(f"Connected to UART {self._serial.port} @ {self._serial.baudrate}")
         self._set_controls_enabled(True)
 
     def disconnect_serial(self):
@@ -415,7 +422,7 @@ class MainWindow(QMainWindow):
 
     def send_command(self, cmd: bytearray):
         if not (self._serial and self._serial.is_open):
-            QMessageBox.warning(self, "Not connected", "Serial port is not connected.")
+            QMessageBox.warning(self, "Not connected", "UART port is not connected.")
             return
         try:
             self._serial.write(cmd)
@@ -427,7 +434,8 @@ class MainWindow(QMainWindow):
 
     # Command handlers
     def open_all_valves(self):
-        self.send_command("OPEN_ALL_VALVES")
+        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_OPEN, COMMAND_PARAM_SERVO_ALL])
+        self.send_command(values)
         # update UI states assuming MCU accepted command
         self.valve_states = [True] * self.VALVE_COUNT
         self._update_valve_buttons()

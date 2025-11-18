@@ -74,9 +74,16 @@ void setup_lora_tasks(){
   #endif // CONFIG_HOME_SENDER
 }
 
+void setup_uartcom_tasks(){
+  #ifdef CONFIG_HOME_SENDER
+    xTaskCreatePinnedToCore(home_com_monitor_task, "Home_Com_Monitor_Task", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+  #endif // CONFIG_HOME_SENDER
+}
+
 extern "C" void app_main() {
   ESP_LOGI("MAIN", "Starting GINA Control Firmware");
   setup_lora_tasks();
+  setup_uartcom_tasks();
   // setup_ignition_relay();
   // set_ignition_relay_high();
   // vTaskDelay(pdMS_TO_TICKS(10000));  // Wait 10s
