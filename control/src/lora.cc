@@ -144,8 +144,11 @@ void home_tx_task(void *pvParameters){
                 ESP_LOGI(pcTaskGetName(NULL), "Command sent successfully");
             }
         }
+        if(command_queue == NULL) {
+            ESP_LOGE(TAG, "Command queue NULL, killing LoRa TX task");
+            return;
+        }
     }
-
     vTaskDelete(NULL);
 }
 #endif // CONFIG_HOME_SENDER

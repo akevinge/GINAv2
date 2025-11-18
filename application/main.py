@@ -451,14 +451,12 @@ class MainWindow(QMainWindow):
         self.send_command(values)
 
     def toggle_valve(self):
-        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, COMMAND_PARAM_SERVO_ALL])
-        self.send_command(values)
         btn = self.sender()
         if not isinstance(btn, QPushButton):
             return
         idx = int(btn.property("index"))
         new_state = btn.isChecked()
-        cmd = f"OPEN_VALVE {idx}" if new_state else f"CLOSE_VALVE {idx}"
+        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, idx])
         self.send_command(values)
         self.valve_states[idx] = new_state
         self._update_valve_buttons()

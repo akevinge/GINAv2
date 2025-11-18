@@ -6,7 +6,7 @@
 typedef struct {
     uint8_t target;
     uint8_t command_type;
-    uint32_t parameters[4];
+    uint8_t parameters[4];
 } command_t;
 
 typedef struct {

@@ -39,8 +39,8 @@ void command_exe_task(void *pvParameters){
 void setup_lora_tasks(){
   #ifdef CONFIG_AWAY_SENDER
     ESP_LOGI(TAG, "Starting Away Sender Configuration");
+    
     QueueHandle_t sensor_queue;
-
     sensor_queue = xQueueCreate(50, sizeof(sensor_data_t)); // Queue to hold sensor data
 
     configure_lora();
@@ -59,8 +59,8 @@ void setup_lora_tasks(){
     command_queue = xQueueCreate(20, sizeof(command_t)); // Queue to hold incoming commands
 
     configure_lora();
-    xTaskCreatePinnedToCore(away_rx_task, "Away_RX_Task", 8192, NULL, 5, NULL, tskNO_AFFINITY);
-    xTaskCreatePinnedToCore(command_exe_task, "Command_Exe_Task", 8192, NULL, 5, NULL, tskNO_AFFINITY);
+    xTaskCreatePinnedToCore(away_rx_task, "Away_RX_Task", 8192, (void*)command_queue, 5, NULL, tskNO_AFFINITY);
+    xTaskCreatePinnedToCore(command_exe_task, "Command_Exe_Task", 8192, (void*)command_queue, 5, NULL, tskNO_AFFINITY);
   #endif // CONFIG_AWAY_RECEIVER
   #ifdef CONFIG_HOME_SENDER
     ESP_LOGI(TAG, "Starting Home Sender Configuration");
@@ -69,21 +69,14 @@ void setup_lora_tasks(){
     command_queue = xQueueCreate(20, sizeof(command_t)); // Queue to hold commands from COM
 
     configure_lora();
-    xTaskCreatePinnedToCore(home_com_monitor_task, "Home_Com_Monitor_Task", 4096, (void*)command_queue, 1, NULL, tskNO_AFFINITY);
     xTaskCreatePinnedToCore(home_tx_task, "Home_TX_Task", 8192, (void*)command_queue, 5, NULL, tskNO_AFFINITY);
-  #endif // CONFIG_HOME_SENDER
-}
-
-void setup_uartcom_tasks(){
-  #ifdef CONFIG_HOME_SENDER
-    xTaskCreatePinnedToCore(home_com_monitor_task, "Home_Com_Monitor_Task", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+    xTaskCreatePinnedToCore(home_com_monitor_task, "Home_Com_Monitor_Task", 4096, (void*)command_queue, 1, NULL, tskNO_AFFINITY);
   #endif // CONFIG_HOME_SENDER
 }
 
 extern "C" void app_main() {
   ESP_LOGI("MAIN", "Starting GINA Control Firmware");
   setup_lora_tasks();
-  setup_uartcom_tasks();
   // setup_ignition_relay();
   // set_ignition_relay_high();
   // vTaskDelay(pdMS_TO_TICKS(10000));  // Wait 10s
