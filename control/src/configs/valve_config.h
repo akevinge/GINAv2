@@ -2,8 +2,6 @@
 
 #include <driver/gpio.h>
 
-#include "valve.h"
-
 enum class Valve {
   kPressurizeFuelTank,
   kPreslugFuel,
@@ -75,7 +73,7 @@ constexpr ValveConfig VALVE_CONFIGS[] = {
         .valve = Valve::kFuelRelease,
         .gpio_num = GPIO_NUM_33,
         .max_angle = 180,
-        .close_angle = 85,
+        .close_angle = 80,
         .open_angle = 0,
     },
 

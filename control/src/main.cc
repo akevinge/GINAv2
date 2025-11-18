@@ -18,6 +18,7 @@
 #include "sensor_management.h"
 #include "uartcom.h"
 #include "valve.h"
+#include "command_handler.h"
 
 #define SENSOR1_PIN ADC_CHANNEL_3  // Example: GPIO4  (ADC1_CH3)
 #define SENSOR2_PIN ADC_CHANNEL_4  // Example: GPIO5  (ADC1_CH4)
@@ -36,9 +37,6 @@ static bool init_adc_calibration(adc_unit_t unit,
           ESP_OK);
 }
 
-void command_exe_task(void* pvParameters) {
-  QueueHandle_t command_queue = static_cast<QueueHandle_t>(pvParameters);
-}
 
 void setup_lora_tasks() {
 #ifdef CONFIG_AWAY_SENDER
@@ -68,9 +66,9 @@ void setup_lora_tasks() {
       xQueueCreate(20, sizeof(command_t));  // Queue to hold incoming commands
 
   configure_lora();
-  xTaskCreatePinnedToCore(away_rx_task, "Away_RX_Task", 8192, NULL, 5, NULL,
+  xTaskCreatePinnedToCore(away_rx_task, "Away_RX_Task", 8192, command_queue, 5, NULL,
                           tskNO_AFFINITY);
-  xTaskCreatePinnedToCore(command_exe_task, "Command_Exe_Task", 8192, NULL, 5,
+  xTaskCreatePinnedToCore(command_exe_task, "Command_Exe_Task", 8192, command_queue, 5,
                           NULL, tskNO_AFFINITY);
 #endif  // CONFIG_AWAY_RECEIVER
 #ifdef CONFIG_HOME_SENDER
@@ -90,6 +88,7 @@ void setup_lora_tasks() {
 
 extern "C" void app_main() {
   ESP_LOGI("MAIN", "Starting GINA Control Firmware");
+  setup_valves();
   setup_lora_tasks();
   // setup_ignition_relay();
   // set_ignition_relay_high();

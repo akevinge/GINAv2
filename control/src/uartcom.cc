@@ -1,14 +1,21 @@
 #include "uartcom.h"
 
+#include "command_handler.h"
 #include "configs/uartcom_config.h"
 #include "driver/uart.h"
 #include "esp_log.h"
 #include "lora.h"
 
-static const char* TAG = "UARTCOM";
+typedef enum {
+  STATE_WAITING_FOR_SOP,
+  STATE_READING_PAYLOAD,
+  STATE_WAITING_FOR_EOP
+} PacketState;
 
 #ifdef CONFIG_HOME_SENDER
 void home_com_monitor_task(void* pvParameters) {
+  QueueHandle_t command_queue = (QueueHandle_t)pvParameters;
+
   // UART configuration
   uart_config_t uart_cfg = {.baud_rate = UART_BAUD_RATE,
                             .data_bits = UART_DATA_BITS,
@@ -22,25 +29,62 @@ void home_com_monitor_task(void* pvParameters) {
   ESP_ERROR_CHECK(uart_set_pin(UART_PORT, UART_TX_PIN, UART_RX_PIN,
                                UART_RTS_PIN, UART_CTS_PIN));
 
-  char buf[256];
-  int len = 0;
+  PacketState current_state = STATE_WAITING_FOR_SOP;
+  unsigned char buf[sizeof(command_t)];
+  int bytes_received = 0;
+  uint8_t current_byte;
 
   while (1) {
     // Read bytes from UART0, with a timeout of 100ms
-    len = uart_read_bytes(UART_NUM_0, (uint8_t*)buf, sizeof(buf) - 1,
-                          pdMS_TO_TICKS(100));
+    int bytes_read =
+        uart_read_bytes(UART_NUM_0, &current_byte, 1, pdMS_TO_TICKS(100));
+    if (bytes_read == 0) {
+      continue;
+    }
 
-    if (len > 0) {
-      buf[len] = '\0';  // Null terminate
-      ESP_LOGI(pcTaskGetName(NULL), "Received command: %s", buf);
+    ESP_LOGI(pcTaskGetName(NULL), "byte: %d", current_byte);
 
-      // TODO: Parse command to command_t structure
-      command_t command;
-      command.address = 0x01;       // Example address
-      command.target = 0x02;        // Example target
-      command.command_type = 0x03;  // Example command type
+    switch (current_state) {
+      case STATE_WAITING_FOR_SOP: {
+        // Found SOP byte, transition into payload read.
+        if (current_byte == SOP_BYTE) {
+          current_state = STATE_READING_PAYLOAD;
+          bytes_received = 0;
+        }
+        break;
+      }
+      case STATE_READING_PAYLOAD: {
+        buf[bytes_received] = current_byte;
+        bytes_received++;
+        // When max buffer is reached, transition to EOP.
+        if (bytes_received == sizeof(command_t)) {
+          current_state = STATE_WAITING_FOR_EOP;
+        }
+        break;
+      }
+      case STATE_WAITING_FOR_EOP: {
+        if (current_byte == EOP_BYTE) {
+          command_t* command = reinterpret_cast<command_t*>(buf);
+          if (xQueueSend(command_queue, command, portMAX_DELAY) != pdPASS) {
+            ESP_LOGE(pcTaskGetName(NULL), "Failed to enqueue command");
+          }
+        } else {
+          // Full payload but EOP byte is bad
+          ESP_LOGW(pcTaskGetName(NULL), "Packet EOP mismatch, discarding.");
+          // Edge case: The byte we just read *might* be the SOP of the *next*
+          // packet.
+          if (current_byte == SOP_BYTE) {
+            current_state = STATE_READING_PAYLOAD;
+            bytes_received = 0;
+            continue;  // Go back to reading next byte.
+          }
+        }
 
-      // TODO: Send command to LoRa TX task
+        // In both cases, we restart the read and search for SOP.
+        current_state = STATE_WAITING_FOR_SOP;
+        bytes_received = 0;
+        break;
+      }
     }
   }
 

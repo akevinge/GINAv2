@@ -3,10 +3,10 @@
 #include "pt.h"
 #include "sensor_management.h"
 
-typedef struct {
+typedef struct __attribute__((packed)) {
+    uint8_t command_type;
     uint8_t address;
     uint8_t target;
-    uint8_t command_type;
     uint32_t parameters[4];
 } command_t;
 

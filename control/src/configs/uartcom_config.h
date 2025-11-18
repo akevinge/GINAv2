@@ -2,6 +2,11 @@
 
 #include <driver/uart.h>
 
+// Start of packet byte.
+constexpr uint8_t SOP_BYTE = 0xFF;
+// End of packet byte.
+constexpr uint8_t EOP_BYTE = 0xFE;
+
 // UART peripheral to use (UART0 connected to CP210x)
 constexpr uart_port_t UART_PORT = UART_NUM_0;
 

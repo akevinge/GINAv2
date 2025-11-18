@@ -151,15 +151,17 @@ void home_tx_task(void *pvParameters){
 #endif // CONFIG_HOME_SENDER
 
 #ifdef CONFIG_AWAY_RECEIVER
-void away_rx_task(void *pvParameters){
+void away_rx_task(void *pvParameters) {
+    QueueHandle_t command_queue = (QueueHandle_t)pvParameters;
     ESP_LOGI(TAG, "Starting LoRa RX task");
-    uint8_t buf[255];
+    uint8_t buf[LORA_MAX_PAYLOAD_SIZE];
     TickType_t xLastWakeTime = xTaskGetTickCount();
     while (1){
-        uint8_t recLen = LoRaReceive(buf, sizeof(buf));
-        if (recLen == sizeof(command_t)){
+        uint8_t recLen = LoRaReceive(buf, LORA_MAX_PAYLOAD_SIZE);
+        if (recLen == LORA_MAX_PAYLOAD_SIZE){
             command_t* recieved = reinterpret_cast<command_t*>(buf);
             ESP_LOGI(pcTaskGetName(NULL), "Received command for target %d, type %d", recieved->target, recieved->command_type);
+            xQueueSend(command_queue, recieved, portMAX_DELAY);
         }
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
     }

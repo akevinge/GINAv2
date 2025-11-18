@@ -8,7 +8,7 @@
 #if defined(CONFIG_AWAY_SENDER) || defined(CONFIG_HOME_RECEIVER)//No crosstalk
 #define LORA_FREQUENCY_HZ 911000000
 #endif
-#if defined(CONFIG_HOME_SENDER) || defined(CONFIG_AWAY_RECIEVER)
+#if defined(CONFIG_HOME_SENDER) || defined(CONFIG_AWAY_RECEIVER)
 #define LORA_FREQUENCY_HZ 913000000
 #endif
 
