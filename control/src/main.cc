@@ -13,6 +13,7 @@
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
+#include "command.h"
 
 #define SENSOR1_PIN ADC_CHANNEL_3   // Example: GPIO4  (ADC1_CH3)
 #define SENSOR2_PIN ADC_CHANNEL_4   // Example: GPIO5  (ADC1_CH4)

@@ -155,6 +155,8 @@ void home_tx_task(void *pvParameters){
 
 #ifdef CONFIG_AWAY_RECEIVER
 void away_rx_task(void *pvParameters){
+    QueueHandle_t command_queue = static_cast<QueueHandle_t>(pvParameters);
+
     ESP_LOGI(TAG, "Starting LoRa RX task");
     uint8_t buf[255];
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -163,6 +165,11 @@ void away_rx_task(void *pvParameters){
         if (recLen == sizeof(command_t)){
             command_t* recieved = reinterpret_cast<command_t*>(buf);
             ESP_LOGI(pcTaskGetName(NULL), "Received command for target %d, type %d", recieved->target, recieved->command_type);
+            if (command_queue != NULL) {
+                xQueueSendToBack(command_queue, recieved, portMAX_DELAY);
+            } else {
+                ESP_LOGE(TAG, "Command queue NULL, cannot forward received command");
+            }
         }
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
     }

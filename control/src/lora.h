@@ -1,6 +1,5 @@
 #ifndef LORA_H_
 #define LORA_H_
-#include "pt.h"
 #include "sensor_management.h"
 
 typedef struct {
