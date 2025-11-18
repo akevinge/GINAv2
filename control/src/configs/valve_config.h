@@ -4,6 +4,17 @@
 
 #include "valve.h"
 
+enum class Valve {
+  kPressurizeFuelTank,
+  kPreslugFuel,
+  kN2PurgeFuelTankBypass,
+  kN2PurgeGox,
+  kPreslugGox,
+  kGoxRelease,
+  kFuelRelease,
+  kValveMax
+};
+
 struct ValveConfig {
   Valve valve;
   gpio_num_t gpio_num;
@@ -19,26 +30,55 @@ struct ValveConfig {
 // 7, 5, 38, 39
 constexpr ValveConfig VALVE_CONFIGS[] = {
     ValveConfig{
-        .valve = Valve::kOxRelease,
-        .gpio_num = GPIO_NUM_7,
-        .max_angle = 270,
-        .close_angle = 0,
+        .valve = Valve::kPressurizeFuelTank,
+        .gpio_num = GPIO_NUM_19,
+        .max_angle = 180,
+        .close_angle = 180,
         .open_angle = 90,
     },
     ValveConfig{
-        .valve = Valve::kOxN2Purge,
-        .gpio_num = GPIO_NUM_6,
+        .valve = Valve::kPreslugFuel,
+        .gpio_num = GPIO_NUM_20,
         .max_angle = 180,
-        .close_angle = 7,
+        .close_angle = 180,
         .open_angle = 85,
     },
     ValveConfig{
-        .valve = Valve::kFuelRelease,
-        .gpio_num = GPIO_NUM_5,
+        .valve = Valve::kN2PurgeFuelTankBypass,
+        .gpio_num = GPIO_NUM_21,
         .max_angle = 180,
-        .close_angle = 0,
+        .close_angle = 180,
         .open_angle = 85,
     },
+    ValveConfig{
+        .valve = Valve::kN2PurgeGox,
+        .gpio_num = GPIO_NUM_26,
+        .max_angle = 180,
+        .close_angle = 85,
+        .open_angle = 0,
+    },
+    ValveConfig{
+        .valve = Valve::kPreslugGox,
+        .gpio_num = GPIO_NUM_48,
+        .max_angle = 180,
+        .close_angle = 85,
+        .open_angle = 0,
+    },
+    ValveConfig{
+        .valve = Valve::kGoxRelease,
+        .gpio_num = GPIO_NUM_47,
+        .max_angle = 180,
+        .close_angle = 85,
+        .open_angle = 0,
+    },
+    ValveConfig{
+        .valve = Valve::kFuelRelease,
+        .gpio_num = GPIO_NUM_33,
+        .max_angle = 180,
+        .close_angle = 85,
+        .open_angle = 0,
+    },
+
 };
 
 constexpr const ValveConfig& get_valve_config(Valve valve) {
