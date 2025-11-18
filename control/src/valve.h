@@ -1,12 +1,6 @@
 #pragma once
 
-enum class Valve {
-  kOxRelease,
-  kOxN2Purge,
-  kFuelRelease,
-  kFuelN2Purge,
-  kValveMax
-};
+#include "configs/valve_config.h"
 
 // Set up underlying valve GPIO pins, pwm timer, GPIO -> channel mapping.
 void setup_valves();
