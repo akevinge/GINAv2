@@ -83,20 +83,29 @@ void home_rx_task(void *pvParameters){
     ESP_LOGI(TAG, "Starting LoRa RX task");
     uint8_t buf[255];
     TickType_t xLastWakeTime = xTaskGetTickCount();
+
+    // Maximum number of sensor packets that can fit into the fixed LoRa payload
+    const size_t max_packets_in_fixed_payload = (LORA_PAYLOAD_LENGTH > sizeof(telemetry_batch_t))
+        ? (LORA_PAYLOAD_LENGTH - sizeof(telemetry_batch_t)) / sizeof(sensor_data_t)
+        : 0;
+
     while (1){
         uint8_t recLen = LoRaReceive(buf, sizeof(buf));
-        if (recLen > sizeof(telemetry_batch_t)){
-            ESP_LOGI(pcTaskGetName(NULL), "Received packet");
+
+        if (recLen == LORA_PAYLOAD_LENGTH) {
+            // Expected fixed-size payload: parse telemetry and use the embedded count
             telemetry_batch_t* recieved = reinterpret_cast<telemetry_batch_t*>(buf);
-            const size_t expected_size = sizeof(telemetry_batch_t) + recieved->count * sizeof(sensor_data_t);
-            
-            if (recLen == expected_size){
-                ESP_LOGI(TAG, "Received batch with %d packets, total size %d bytes", recieved->count, recLen);
+
+            if (recieved->count > max_packets_in_fixed_payload) {
+                ESP_LOGE(pcTaskGetName(NULL), "Telemetry count %d exceeds max packets %d for fixed payload",
+                         recieved->count, (int)max_packets_in_fixed_payload);
+            } else {
+                ESP_LOGI(TAG, "Received batch with %d packets (fixed payload)", recieved->count);
                 for (uint8_t i = 0; i < recieved->count; ++i){
                     sensor_data_t& data = recieved->packets[i];
-                    ESP_LOGI(TAG, "Packet %d - Timestamp: %d, PT Readings: [%d, %d, %d, %d, %d, %d], Load Cell: %d",
+                    ESP_LOGI(TAG, "Packet %d - Timestamp: %u, PT Readings: [%d, %d, %d, %d, %d, %d], Load Cell: %d",
                              i,
-                             data.timestamp,
+                             (unsigned)data.timestamp,
                              data.pt_readings[0],
                              data.pt_readings[1],
                              data.pt_readings[2],
@@ -105,13 +114,15 @@ void home_rx_task(void *pvParameters){
                              data.pt_readings[5],
                              data.load_cell_reading);
                 }
-            } else {
-                ESP_LOGE(pcTaskGetName(NULL), "Received batch size mismatch: expected %d bytes but got %d bytes", (int)expected_size, (int)recLen);
             }
 
             int8_t rssi, snr;
             GetPacketStatus(&rssi, &snr);
             ESP_LOGI(pcTaskGetName(NULL), "Received packet of size %d bytes, RSSI: %d dBm, SNR: %d dB", recLen, rssi, snr);
+
+        } else {
+            // Ignore or log too-small packets
+            ESP_LOGD(pcTaskGetName(NULL), "Received packet too small to be telemetry: %d bytes", recLen);
         }
 
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
@@ -160,7 +171,7 @@ void away_rx_task(void *pvParameters){
     TickType_t xLastWakeTime = xTaskGetTickCount();
     while (1){
         uint8_t recLen = LoRaReceive(buf, sizeof(buf));
-        if (recLen == sizeof(command_t)){
+        if (recLen == LORA_PAYLOAD_LENGTH){
             command_t* recieved = reinterpret_cast<command_t*>(buf);
             ESP_LOGI(pcTaskGetName(NULL), "Received command for target %d, type %d", recieved->target, recieved->command_type);
             if (command_queue != NULL) {
@@ -169,7 +180,7 @@ void away_rx_task(void *pvParameters){
                 ESP_LOGE(TAG, "Command queue NULL, cannot forward received command");
             }
         } else {
-            ESP_LOGE(pcTaskGetName(NULL), "Received packet size mismatch: expected %d bytes but got %d bytes", (int)sizeof(command_t), (int)recLen);
+            ESP_LOGE(pcTaskGetName(NULL), "Received packet size mismatch: expected %d bytes but got %d bytes", LORA_PAYLOAD_LENGTH, (int)recLen);
         }
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
     }

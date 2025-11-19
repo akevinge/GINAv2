@@ -17,7 +17,7 @@
 #define LORA_BANDWIDTH 6 // Maximum BW of 500 kHz at 6
 #define LORA_CODING_RATE 1
 #define LORA_PREAMBLE_LENGTH 8
-#define LORA_PAYLOAD_LENGTH 0 // 0 for variable length
+#define LORA_PAYLOAD_LENGTH 255 // 0 for variable length
 #define LORA_CRC_ON 1
 #define LORA_INVERT_IRQ 0
 
