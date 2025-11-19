@@ -1,2 +1,9 @@
-void command_exe_task(void *pvParameters);
-void command_servo_execute(const command_t command);
+#pragma once
+
+#define COMMAND_ACTION_CLOSE_ALL_VALVES 0x00
+#define COMMAND_ACTION_OPEN_ALL_VALVES 0x01
+#define COMMAND_ACTION_START_IGNITION_SEQUENCE 0x02
+#define COMMAND_ACTION_OPEN_VALVE 0x03
+#define COMMAND_ACTION_CLOSE_VALVE 0x04
+
+void command_exe_task(void* pvParameters);

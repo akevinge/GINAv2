@@ -146,10 +146,8 @@ void home_tx_task(void *pvParameters){
     while (1){
         command_t command;
         if (xQueueReceive(command_queue, &command, portMAX_DELAY) == pdPASS){
-            ESP_LOGI(TAG, "Sending command to target %d, type %d", command.target, command.command_type);
-            uint8_t buffer[sizeof(command_t)];
-            memcpy(buffer, &command, sizeof(command_t));
-
+            ESP_LOGI(TAG, "Sending command with action %d", command.action);
+            uint8_t * buffer = reinterpret_cast<uint8_t*>(&command);
             if (LoRaSend(buffer, sizeof(command_t), SX126x_TXMODE_SYNC) == false){
                ESP_LOGE(pcTaskGetName(NULL), "LoRaSend failed");
             } else {
@@ -173,14 +171,12 @@ void away_rx_task(void *pvParameters){
         uint8_t recLen = LoRaReceive(buf, sizeof(buf));
         if (recLen == LORA_PAYLOAD_LENGTH){
             command_t* recieved = reinterpret_cast<command_t*>(buf);
-            ESP_LOGI(pcTaskGetName(NULL), "Received command for target %d, type %d", recieved->target, recieved->command_type);
+            ESP_LOGI(pcTaskGetName(NULL), "Received command with action %d", recieved->action);
             if (command_queue != NULL) {
                 xQueueSendToBack(command_queue, recieved, portMAX_DELAY);
             } else {
                 ESP_LOGE(TAG, "Command queue NULL, cannot forward received command");
             }
-        } else {
-            ESP_LOGE(pcTaskGetName(NULL), "Received packet size mismatch: expected %d bytes but got %d bytes", LORA_PAYLOAD_LENGTH, (int)recLen);
         }
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
     }

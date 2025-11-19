@@ -1,6 +1,5 @@
 #include "uartcom.h"
 
-#include "command_handler.h"
 #include "configs/uartcom_config.h"
 #include "driver/uart.h"
 #include "esp_log.h"
@@ -8,7 +7,8 @@
 
 typedef enum {
   STATE_WAITING_FOR_SOP,
-  STATE_READING_PAYLOAD
+  STATE_READING_PAYLOAD,
+  STATE_WAITING_FOR_EOP
 } PacketState;
 
 #ifdef CONFIG_HOME_SENDER
@@ -45,10 +45,8 @@ void home_com_monitor_task(void* pvParameters) {
 
     switch (current_state) {
       case STATE_WAITING_FOR_SOP: {
-        ESP_LOGI(pcTaskGetName(NULL), "Waiting for SOP");
         // Found SOP byte, transition into payload read.
         if (current_byte == SOP_BYTE) {
-          ESP_LOGI(pcTaskGetName(NULL), "SOP Found");
           current_state = STATE_READING_PAYLOAD;
           bytes_received = 0;
         }
@@ -57,27 +55,34 @@ void home_com_monitor_task(void* pvParameters) {
       case STATE_READING_PAYLOAD: {
         buf[bytes_received] = current_byte;
         bytes_received++;
-
+        // When max buffer is reached, transition to EOP.
+        if (bytes_received == sizeof(command_t)) {
+          current_state = STATE_WAITING_FOR_EOP;
+        }
+        break;
+      }
+      case STATE_WAITING_FOR_EOP: {
         if (current_byte == EOP_BYTE) {
-          command_t command;
-          command.target = buf[0];
-          command.command_type = buf[1];
-          for (int i = 0; i < 4; i++) {
-            command.parameters[i] = buf[2 + i];
+          command_t* command = reinterpret_cast<command_t*>(buf);
+          if (xQueueSend(command_queue, command, portMAX_DELAY) != pdPASS) {
+            ESP_LOGE(pcTaskGetName(NULL), "Failed to enqueue command");
           }
-          if (xQueueSend(command_queue, &command, portMAX_DELAY) != pdPASS) {
-            ESP_LOGI(pcTaskGetName(NULL), "Failed to enqueue command");
+        } else {
+          // Full payload but EOP byte is bad
+          ESP_LOGW(pcTaskGetName(NULL), "Packet EOP mismatch, discarding.");
+          // Edge case: The byte we just read *might* be the SOP of the *next*
+          // packet.
+          if (current_byte == SOP_BYTE) {
+            current_state = STATE_READING_PAYLOAD;
+            bytes_received = 0;
+            continue;  // Go back to reading next byte.
           }
-          current_state = STATE_WAITING_FOR_SOP;
-          bytes_received = 0;
-          break;
         }
-        else if (bytes_received >= sizeof(command_t)) {
-          ESP_LOGW(pcTaskGetName(NULL), "Buffer overflow, resetting state");
-          current_state = STATE_WAITING_FOR_SOP;
-          bytes_received = 0;
-          break;
-        }
+
+        // In both cases, we restart the read and search for SOP.
+        current_state = STATE_WAITING_FOR_SOP;
+        bytes_received = 0;
+        break;
       }
     }
   }

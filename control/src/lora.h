@@ -4,8 +4,7 @@
 #include "sensor_management.h"
 
 typedef struct __attribute__((packed)) {
-    uint8_t command_type;
-    uint8_t target;
+    uint8_t action;
     uint8_t parameters[4];
 } command_t;
 

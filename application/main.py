@@ -23,38 +23,16 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QDockWidget
 #
 # Adjust command format to match your MCU's firmware protocol if needed.
 
-#define COMMAND_TARGET_SERVO 0x00
-COMMAND_TARGET_SERVO = 0x00
-#define COMMAND_TARGET_IGNITER 0x01
-COMMAND_TARGET_IGNITER = 0x01
-
-#define COMMAND_ACTION_SERVO_CLOSE 0x00
-COMMAND_ACTION_SERVO_CLOSE = 0x00
-#define COMMAND_ACTION_SERVO_OPEN 0x01
-COMMAND_ACTION_SERVO_OPEN = 0x01
-#define COMMAND_ACTION_SERVO_SET 0x02
-COMMAND_ACTION_SERVO_SET = 0x02
-
-#define COMMAND_ACTION_IGNITER_START 0x00
-COMMAND_ACTION_IGNITER_START = 0x00
-
-#define COMMAND_PARAM_SERVO_ALL 0xEE
-COMMAND_PARAM_SERVO_ALL = 0xEE
+COMMAND_ACTION_CLOSE_ALL_VALVES = 0x00
+COMMAND_ACTION_OPEN_ALL_VALVES = 0x01
+COMMAND_ACTION_START_IGNITION_SEQUENCE = 0x02
+COMMAND_ACTION_OPEN_VALVE = 0x03
+COMMAND_ACTION_CLOSE_VALVE = 0x04
 
 import struct
-
-
-
 import serial
-
-
 import time
-
-
-from dataclasses import dataclass
-
-
-
+from dataclasses import dataclass, field
 
 
 # --- Configuration ---
@@ -62,17 +40,27 @@ from dataclasses import dataclass
 
 # NOTE: If you are running on Windows, change this to 'COMx' (e.g., 'COM3')
 
-
-SERIAL_PORT = '/dev/ttyUSB0'
+SERIAL_PORT = "/dev/ttyUSB0"
 
 
 BAUD_RATE = 115200
 
-STRUCT_FORMAT = '<BBB4I'
-EXPECTED_SIZE = struct.calcsize(STRUCT_FORMAT)
 
-SOP_BYTE = b'\xFF'
-EOP_BYTE = b'\xFE'
+SOP_BYTE = b"\xff"
+EOP_BYTE = b"\xfe"
+
+
+@dataclass
+class Command:
+    action: int
+    parameters: List[int] = field(default_factory=lambda: [0, 0, 0, 0])
+
+    def to_bytes(self) -> bytes:
+        """Convert the command to a packed byte array like the C struct."""
+        if len(self.parameters) != 4:
+            raise ValueError("Parameters must be exactly 4 bytes")
+        return bytes([self.action] + self.parameters)
+
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -90,6 +78,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QLineEdit,
 )
+
 try:
     import serial.tools.list_ports
 except Exception as e:
@@ -98,7 +87,10 @@ except Exception as e:
 try:
     import pyqtgraph as pg
 except Exception as e:
-    raise RuntimeError("pyqtgraph is required for the telemetry UI: pip install pyqtgraph") from e
+    raise RuntimeError(
+        "pyqtgraph is required for the telemetry UI: pip install pyqtgraph"
+    ) from e
+
 
 class TelemetryWidget(QWidget):
     """
@@ -148,7 +140,9 @@ class TelemetryWidget(QWidget):
         self.pg_load = pg.PlotWidget(title="Load Cell")
         self.pg_load.showGrid(x=True, y=True)
         self.load_buffer = deque([0.0] * history, maxlen=history)
-        self.load_curve = self.pg_load.plot(list(self.load_buffer), pen=pg.mkPen(color=(200, 200, 0), width=2))
+        self.load_curve = self.pg_load.plot(
+            list(self.load_buffer), pen=pg.mkPen(color=(200, 200, 0), width=2)
+        )
         tabs.addTab(self.pg_load, "Load Cell")
 
         # Small timer to refresh plots at a human-rate (avoid updating on every sample)
@@ -166,7 +160,9 @@ class TelemetryWidget(QWidget):
         for buf, curve in zip(self.pressure_buffers, self.pressure_curves):
             curve.setData(x, list(buf))
         # Update load curve
-        self.load_curve.setData(list(range(-len(self.load_buffer), 0)), list(self.load_buffer))
+        self.load_curve.setData(
+            list(range(-len(self.load_buffer), 0)), list(self.load_buffer)
+        )
         self._refresh_pending = False
 
     def update_pressures(self, pressures: List[float]):
@@ -195,6 +191,7 @@ class TelemetryWidget(QWidget):
         """
         self.update_pressures(pressures)
         self.update_loadcell(load)
+
 
 class SerialReader(QThread):
     data_received = Signal(str)
@@ -225,6 +222,7 @@ class SerialReader(QThread):
     def stop(self):
         self._running = False
         self.wait(200)
+
 
 class MainWindow(QMainWindow):
     DEFAULT_BAUD = 115200
@@ -331,7 +329,9 @@ class MainWindow(QMainWindow):
         # Disable command widgets until connected
         self._set_controls_enabled(False)
 
-    def attach_telemetry_dock(main_window, area: Qt.DockWidgetArea = Qt.RightDockWidgetArea) -> QDockWidget:
+    def attach_telemetry_dock(
+        main_window, area: Qt.DockWidgetArea = Qt.RightDockWidgetArea
+    ) -> QDockWidget:
         """
         Attach a telemetry dock to the given QMainWindow and return the created QDockWidget.
         Call like: attach_telemetry_dock(self) from MainWindow.__init__ (or after creating the window).
@@ -399,7 +399,9 @@ class MainWindow(QMainWindow):
             # open as a UART device (uses same pyserial Serial API)
             self._serial = serial.Serial(port=port.strip(), baudrate=baud, timeout=0.1)
         except Exception as e:
-            QMessageBox.critical(self, "Connection Error", f"Could not open UART port: {e}")
+            QMessageBox.critical(
+                self, "Connection Error", f"Could not open UART port: {e}"
+            )
             self.log(f"Failed to open {port}: {e}")
             self._serial = None
             return
@@ -410,7 +412,9 @@ class MainWindow(QMainWindow):
         self._reader.start()
 
         self.connect_btn.setText("Disconnect")
-        self.status_label.setText(f"Connected (UART): {self._serial.port} @ {self._serial.baudrate}")
+        self.status_label.setText(
+            f"Connected (UART): {self._serial.port} @ {self._serial.baudrate}"
+        )
         self.log(f"Connected to UART {self._serial.port} @ {self._serial.baudrate}")
         self._set_controls_enabled(True)
 
@@ -432,9 +436,7 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def on_data_received(self, data: str):
         self.log(f"RX: {data}")
-        self.telemetry_widget.update_all(
-            pressures=[0.0] * 8,
-            load=0.3)
+        self.telemetry_widget.update_all(pressures=[0.0] * 8, load=0.3)
 
     @Slot(str)
     def on_serial_error(self, msg: str):
@@ -453,8 +455,9 @@ class MainWindow(QMainWindow):
                 pass
         event.accept()
 
-    def send_command(self, cmd: bytearray):
-        payload = SOP_BYTE + cmd + EOP_BYTE
+    def send_command(self, cmd: Command):
+        payload = SOP_BYTE + cmd.to_bytes() + EOP_BYTE
+        print(payload)
         if not (self._serial and self._serial.is_open):
             QMessageBox.warning(self, "Not connected", "UART port is not connected.")
             return
@@ -468,21 +471,18 @@ class MainWindow(QMainWindow):
 
     # Command handlers
     def open_all_valves(self):
-        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_OPEN, COMMAND_PARAM_SERVO_ALL])
-        self.send_command(values)
+        self.send_command(Command(action=COMMAND_ACTION_OPEN_ALL_VALVES))
         # update UI states assuming MCU accepted command
         self.valve_states = [True] * self.VALVE_COUNT
         self._update_valve_buttons()
 
     def close_all_valves(self):
-        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, COMMAND_PARAM_SERVO_ALL])
-        self.send_command(values)
+        self.send_command(Command(action=COMMAND_ACTION_CLOSE_ALL_VALVES))
         self.valve_states = [False] * self.VALVE_COUNT
         self._update_valve_buttons()
 
     def start_igniter(self):
-        values = bytearray([COMMAND_TARGET_IGNITER, COMMAND_ACTION_IGNITER_START, 0x00])
-        self.send_command(values)
+        self.send_command(Command(action=COMMAND_ACTION_START_IGNITION_SEQUENCE))
 
     def toggle_valve(self):
         btn = self.sender()
@@ -490,25 +490,28 @@ class MainWindow(QMainWindow):
             return
         idx = int(btn.property("index"))
         new_state = btn.isChecked()
+        command = Command()
         if new_state:
-            values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_OPEN, idx])
+            command.action = COMMAND_ACTION_OPEN_VALVE
         else:
-            values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, idx])
-        self.send_command(values)
+            command.action = COMMAND_ACTION_CLOSE_VALVE
+        command.parameters = [idx, 0, 0, 0]
+        self.send_command(command)
         self.valve_states[idx] = new_state
         self._update_valve_buttons()
 
     def direct_open(self):
-        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, COMMAND_PARAM_SERVO_ALL])
-        self.send_command(values)
         idx = self.direct_spin.value()
+        self.send_command(
+            Command(action=COMMAND_ACTION_OPEN_VALVE, parameters=[idx, 0, 0, 0])
+        )
         self.valve_states[idx] = True
         self._update_valve_buttons()
 
     def direct_close(self):
         idx = self.direct_spin.value()
-        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, COMMAND_PARAM_SERVO_ALL])
-        self.send_command(values)
+        command = Command(action=COMMAND_ACTION_CLOSE_VALVE, parameters=[idx, 0, 0, 0])
+        self.send_command(command)
         self.valve_states[idx] = False
         self._update_valve_buttons()
 
