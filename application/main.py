@@ -38,8 +38,41 @@ COMMAND_ACTION_SERVO_SET = 0x02
 #define COMMAND_ACTION_IGNITER_START 0x00
 COMMAND_ACTION_IGNITER_START = 0x00
 
-#define COMMAND_PARAM_SERVO_ALL 0xFF
-COMMAND_PARAM_SERVO_ALL = 0xFF
+#define COMMAND_PARAM_SERVO_ALL 0xEE
+COMMAND_PARAM_SERVO_ALL = 0xEE
+
+import struct
+
+
+
+import serial
+
+
+import time
+
+
+from dataclasses import dataclass
+
+
+
+
+
+# --- Configuration ---
+
+
+# NOTE: If you are running on Windows, change this to 'COMx' (e.g., 'COM3')
+
+
+SERIAL_PORT = '/dev/ttyUSB0'
+
+
+BAUD_RATE = 115200
+
+STRUCT_FORMAT = '<BBB4I'
+EXPECTED_SIZE = struct.calcsize(STRUCT_FORMAT)
+
+SOP_BYTE = b'\xFF'
+EOP_BYTE = b'\xFE'
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -421,12 +454,13 @@ class MainWindow(QMainWindow):
         event.accept()
 
     def send_command(self, cmd: bytearray):
+        payload = SOP_BYTE + cmd + EOP_BYTE
         if not (self._serial and self._serial.is_open):
             QMessageBox.warning(self, "Not connected", "UART port is not connected.")
             return
         try:
-            self._serial.write(cmd)
-            self.log(f"TX: {cmd}")
+            self._serial.write(payload)
+            self.log(f"TX: {payload}")
         except Exception as e:
             self.log(f"Write failed: {e}")
             QMessageBox.critical(self, "Write Error", str(e))
@@ -456,7 +490,10 @@ class MainWindow(QMainWindow):
             return
         idx = int(btn.property("index"))
         new_state = btn.isChecked()
-        values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, idx])
+        if new_state:
+            values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_OPEN, idx])
+        else:
+            values = bytearray([COMMAND_TARGET_SERVO, COMMAND_ACTION_SERVO_CLOSE, idx])
         self.send_command(values)
         self.valve_states[idx] = new_state
         self._update_valve_buttons()

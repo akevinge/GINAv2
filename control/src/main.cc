@@ -1,8 +1,18 @@
+//#include <hx711.h>
+#include <stdio.h>
+
+#include <cstdint>
+
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+#include "esp_adc/adc_oneshot.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "ignition.h"
+#include "load_cell.h"
+#include "lora.h"
 #include "pt.h"
 #include "pt_adc.h"
 #include "valve.h"
@@ -14,6 +24,7 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "command.h"
+#include "configs/lora_config.h"
 
 #define SENSOR1_PIN ADC_CHANNEL_3   // Example: GPIO4  (ADC1_CH3)
 #define SENSOR2_PIN ADC_CHANNEL_4   // Example: GPIO5  (ADC1_CH4)
@@ -32,10 +43,8 @@ static bool init_adc_calibration(adc_unit_t unit, adc_cali_handle_t *out_handle)
     return (adc_cali_create_scheme_curve_fitting(&cali_config, out_handle) == ESP_OK);
 }
 
-void command_exe_task(void *pvParameters){
-  QueueHandle_t command_queue = static_cast<QueueHandle_t>(pvParameters);
-  
-}
+// `command_exe_task` is implemented in `command.cc`. Do not define it here
+// to avoid multiple-definition linker errors.
 
 void setup_lora_tasks(){
   #ifdef CONFIG_AWAY_SENDER
@@ -72,11 +81,36 @@ void setup_lora_tasks(){
     configure_lora();
     xTaskCreatePinnedToCore(home_tx_task, "Home_TX_Task", 8192, (void*)command_queue, 5, NULL, tskNO_AFFINITY);
     xTaskCreatePinnedToCore(home_com_monitor_task, "Home_Com_Monitor_Task", 4096, (void*)command_queue, 1, NULL, tskNO_AFFINITY);
-  #endif // CONFIG_HOME_SENDER
+    command_t cmd;
+    cmd.target = COMMAND_TARGET_SERVO;  
+    cmd.command_type = COMMAND_ACTION_SERVO_OPEN;
+    cmd.parameters[0] = COMMAND_PARAM_SERVO_ALL;
+    if (xQueueSend(command_queue, &cmd, portMAX_DELAY) != pdPASS) {
+      ESP_LOGI(TAG, "Failed to enqueue initial command");
+    }
+    cmd.target = COMMAND_TARGET_SERVO;  
+    cmd.command_type = COMMAND_ACTION_SERVO_CLOSE;
+    cmd.parameters[0] = COMMAND_PARAM_SERVO_ALL;
+    if (xQueueSend(command_queue, &cmd, portMAX_DELAY) != pdPASS) {
+      ESP_LOGI(TAG, "Failed to enqueue initial command");
+    }
+    cmd.target = COMMAND_TARGET_SERVO;  
+    cmd.command_type = COMMAND_ACTION_SERVO_CLOSE;
+    cmd.parameters[0] = 1;
+    if (xQueueSend(command_queue, &cmd, portMAX_DELAY) != pdPASS) {
+      ESP_LOGI(TAG, "Failed to enqueue initial command");
+    }
+    cmd.target = COMMAND_TARGET_IGNITER;  
+    cmd.command_type = COMMAND_ACTION_IGNITER_START;
+    if (xQueueSend(command_queue, &cmd, portMAX_DELAY) != pdPASS) {
+      ESP_LOGI(TAG, "Failed to enqueue initial command");
+    }
+    #endif // CONFIG_HOME_SENDER
 }
 
 extern "C" void app_main() {
   ESP_LOGI("MAIN", "Starting GINA Control Firmware");
+  setup_valves();
   setup_lora_tasks();
   // setup_ignition_relay();
   // set_ignition_relay_high();

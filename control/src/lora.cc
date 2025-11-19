@@ -123,6 +123,7 @@ void home_rx_task(void *pvParameters){
 
 #ifdef CONFIG_HOME_SENDER
 void home_tx_task(void *pvParameters){
+    ESP_LOGI(TAG, "Starting HOME TX task");
     QueueHandle_t command_queue = static_cast<QueueHandle_t>(pvParameters);
 
     if (command_queue == NULL) {
@@ -144,11 +145,8 @@ void home_tx_task(void *pvParameters){
                 ESP_LOGI(pcTaskGetName(NULL), "Command sent successfully");
             }
         }
-        if(command_queue == NULL) {
-            ESP_LOGE(TAG, "Command queue NULL, killing LoRa TX task");
-            return;
-        }
     }
+
     vTaskDelete(NULL);
 }
 #endif // CONFIG_HOME_SENDER
@@ -170,6 +168,8 @@ void away_rx_task(void *pvParameters){
             } else {
                 ESP_LOGE(TAG, "Command queue NULL, cannot forward received command");
             }
+        } else {
+            ESP_LOGE(pcTaskGetName(NULL), "Received packet size mismatch: expected %d bytes but got %d bytes", (int)sizeof(command_t), (int)recLen);
         }
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(pdMS_TO_TICKS(1000 / LORA_TRANSFER_RATE_HZ)));
     }
@@ -193,6 +193,5 @@ void configure_lora(){
 
     // LoRa transmission configuration - Minimum range + security and maximum rate at 7, 6, 1, 8, 0
 
-
-    LoRaConfig(LORA_SPREADING_FACTOR, LORA_BANDWIDTH, LORA_CODING_RATE, LORA_PREAMBLE_LENGTH, LORA_MAX_PAYLOAD_SIZE, LORA_CRC_ON, LORA_INVERT_IRQ);
+    LoRaConfig(LORA_SPREADING_FACTOR, LORA_BANDWIDTH, LORA_CODING_RATE, LORA_PREAMBLE_LENGTH, LORA_PAYLOAD_LENGTH, LORA_CRC_ON, LORA_INVERT_IRQ);
 }
