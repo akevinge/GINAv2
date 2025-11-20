@@ -8,7 +8,8 @@
 
 typedef enum {
   STATE_WAITING_FOR_SOP,
-  STATE_READING_PAYLOAD
+  STATE_READING_PAYLOAD,
+  STATE_WAITING_FOR_EOP
 } PacketState;
 
 #ifdef CONFIG_HOME_SENDER
@@ -85,3 +86,35 @@ void home_com_monitor_task(void* pvParameters) {
   vTaskDelete(NULL);
 }
 #endif  // CONFIG_HOME_SENDER
+
+#ifdef CONFIG_HOME_RECEIVER
+void telemetry_uartcom_task(void* pvParameters) {
+  QueueHandle_t home_sensor_queue = (QueueHandle_t)pvParameters;
+  // UART configuration
+  uart_config_t uart_cfg = {.baud_rate = UART_BAUD_RATE,
+                            .data_bits = UART_DATA_BITS,
+                            .parity = UART_PARITY,
+                            .stop_bits = UART_STOP_BITS,
+                            .flow_ctrl = UART_FLOW_CTRL};
+
+  ESP_ERROR_CHECK(uart_driver_install(UART_PORT, UART_RX_BUF_SIZE,
+                                      UART_TX_BUF_SIZE, 0, NULL, 0));
+  ESP_ERROR_CHECK(uart_param_config(UART_PORT, &uart_cfg));
+  ESP_ERROR_CHECK(uart_set_pin(UART_PORT, UART_TX_PIN, UART_RX_PIN,
+                               UART_RTS_PIN, UART_CTS_PIN));
+
+  while (1) {
+    sensor_data_t sensor_data;
+    uint8_t tx_buf[sizeof(sensor_data_t) + 2];
+    if (xQueueReceive(home_sensor_queue, &sensor_data, portMAX_DELAY) == pdPASS) {
+      // Transmit sensor data over UART
+        tx_buf[0] = SOP_BYTE;
+        memcpy(&tx_buf[1], &sensor_data, sizeof(sensor_data_t));
+        tx_buf[1 + sizeof(sensor_data_t)] = EOP_BYTE;
+        uart_write_bytes(UART_PORT, (const char*)tx_buf, sizeof(tx_buf));
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+#endif // CONFIG_HOME_RECEIVER

@@ -110,7 +110,7 @@ class TelemetryWidget(QWidget):
     to feed data in (these can be called from the main thread).
     """
 
-    def __init__(self, history: int = 10000, parent: Optional[QWidget] = None):
+    def __init__(self, history: int = 100, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.history = history
 
@@ -161,11 +161,11 @@ class TelemetryWidget(QWidget):
     def _refresh_plots(self):
         if not self._refresh_pending:
             return
-        # Update pressure curves
-        x = list(range(-len(self.time_buffer), 0))
+        # Update pressure curves: use X that matches each buffer length to avoid shape mismatch
         for buf, curve in zip(self.pressure_buffers, self.pressure_curves):
+            x = list(range(-len(buf), 0))
             curve.setData(x, list(buf))
-        # Update load curve
+        # Update load curve with matching X
         self.load_curve.setData(list(range(-len(self.load_buffer), 0)), list(self.load_buffer))
         self._refresh_pending = False
 
@@ -196,8 +196,15 @@ class TelemetryWidget(QWidget):
         self.update_pressures(pressures)
         self.update_loadcell(load)
 
+@dataclass
+class SensorData:
+    pt_readings: List[int]          # 6 uint16 values
+    load_cell_reading: int          # uint8
+    timestamp: int                  # TickType_t assumed uint32
+
 class SerialReader(QThread):
-    data_received = Signal(str)
+    # Emit parsed SensorData objects when a valid framed packet is received
+    data_received = Signal(object)
     error = Signal(str)
 
     def __init__(self, ser: serial.Serial):
@@ -206,15 +213,62 @@ class SerialReader(QThread):
         self._running = True
 
     def run(self):
+        buf = bytearray()
+        # expected payload: 6 * uint16 (12) + uint8 (1) + uint32 (4) = 17 bytes
+        expected_len = 6*2 + 1 + 4
         while self._running and self._ser and self._ser.is_open:
             try:
-                if self._ser.in_waiting:
-                    raw = self._ser.readline()
-                    try:
-                        text = raw.decode(errors="replace").rstrip("\r\n")
-                    except Exception:
-                        text = repr(raw)
-                    self.data_received.emit(text)
+                available = self._ser.in_waiting
+                if available:
+                    print("available data")
+                    chunk = self._ser.read(available)
+                    if chunk:
+                        buf.extend(chunk)
+
+                    # process buffer looking for framed packets SOP..payload..EOP
+                    while True:
+                        try:
+                            # find SOP (single byte)
+                            sop_idx = buf.index(SOP_BYTE)
+                            print("Found SOP at index", sop_idx)
+                        except ValueError:
+                            # no SOP yet; avoid unbounded growth
+                            if len(buf) > 4096:
+                                buf.clear()
+                            break
+
+                        # find EOP after SOP
+                        try:
+                            eop_idx = buf.index(EOP_BYTE, sop_idx + 1)
+                            print("Found EOP at index", sop_idx)
+                        except ValueError:
+                            # wait for more data; but drop bytes before SOP to keep buffer small
+                            if sop_idx > 0:
+                                del buf[:sop_idx]
+                            break
+
+                        # extract payload between SOP and EOP
+                        payload = bytes(buf[sop_idx + 1:eop_idx])
+                        # remove processed bytes from buffer
+                        del buf[:eop_idx + 1]
+
+                        if len(payload) != expected_len:
+                            print("Wrong Length:", len(payload), "expected", expected_len)
+                            print("Payload:", payload)
+                            # ignore unexpected-length payloads
+                            continue
+
+                        # parse payload: little-endian: 6H (uint16), B (uint8), I (uint32)
+                        try:
+                            # pt_readings: first 12 bytes
+                            pt_vals = list(struct.unpack('<6H', payload[0:12]))
+                            load = payload[12]
+                            timestamp = struct.unpack('<I', payload[13:17])[0]
+                            sensor = SensorData(pt_readings=pt_vals, load_cell_reading=load, timestamp=timestamp)
+                            self.data_received.emit(sensor)
+                        except Exception as e:
+                            self.error.emit(f"Parse error: {e}")
+                            continue
                 else:
                     # small sleep to avoid busy loop
                     self.msleep(50)
@@ -429,12 +483,23 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Disconnected")
         self._set_controls_enabled(False)
 
-    @Slot(str)
-    def on_data_received(self, data: str):
-        self.log(f"RX: {data}")
+    @Slot(object)
+    def on_data_received(self, sensor):
+        # If an unexpected type is received, log generically
+        if not isinstance(sensor, SensorData):
+            self.log(f"RX (unknown): {sensor}")
+            return
+
+        # Log and forward to telemetry widget (pad to 8 pressure channels)
+        self.log(f"RX Sensor - ts={sensor.timestamp} load={sensor.load_cell_reading} pts={sensor.pt_readings}")
+        pressures = [float(x) for x in sensor.pt_readings]
+        # pad to 8 channels with zeros if needed
+        if len(pressures) < 8:
+            pressures += [0.0] * (8 - len(pressures))
         self.telemetry_widget.update_all(
-            pressures=[0.0] * 8,
-            load=0.3)
+            pressures=pressures[:8],
+            load=float(sensor.load_cell_reading),
+        )
 
     @Slot(str)
     def on_serial_error(self, msg: str):

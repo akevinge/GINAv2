@@ -59,8 +59,28 @@ void setup_lora_tasks(){
   #endif // CONFIG_AWAY_SENDER
   #ifdef CONFIG_HOME_RECEIVER
     ESP_LOGI(TAG, "Starting Home Receiver Configuration");
+    
+    QueueHandle_t home_sensor_queue;
+    home_sensor_queue = xQueueCreate(50, sizeof(sensor_data_t)); // Queue to hold incoming telemetry batches
+    
     configure_lora();
-    xTaskCreatePinnedToCore(home_rx_task, "LoRa_RX_Task", 8192, NULL, 5, NULL, tskNO_AFFINITY);
+    xTaskCreatePinnedToCore(home_rx_task, "LoRa_RX_Task", 8192, (void*)home_sensor_queue, 5, NULL, tskNO_AFFINITY);
+    xTaskCreatePinnedToCore(telemetry_uartcom_task, "Telemetry_Uartcom_Task", 8192, (void*)home_sensor_queue, 5, NULL, tskNO_AFFINITY);
+    int j = 0;
+    while(1){
+      j++;
+      ESP_LOGE(TAG, "Sending test sensor data to UART task %d", sizeof(sensor_data_t));
+        sensor_data_t data;
+        data.timestamp = xTaskGetTickCount();
+        for (int i = 0; i < 6; i++){
+            data.pt_readings[i] = i * 10 + j;  // Dummy data for testing
+        }
+        data.load_cell_reading = 42;  // Dummy data for testing
+        if (xQueueSend(home_sensor_queue, &data, portMAX_DELAY) != pdPASS) {
+            ESP_LOGI(TAG, "Failed to enqueue test sensor data");
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
   #endif // CONFIG_HOME_RECEIVER
   #ifdef CONFIG_AWAY_RECEIVER
     ESP_LOGI(TAG, "Starting Away Receiver Configuration");

@@ -81,6 +81,7 @@ void away_tx_task(void *pvParameters){
 #ifdef CONFIG_HOME_RECEIVER
 void home_rx_task(void *pvParameters){
     ESP_LOGI(TAG, "Starting LoRa RX task");
+    QueueHandle_t home_sensor_queue = static_cast<QueueHandle_t>(pvParameters);
     uint8_t buf[255];
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
@@ -113,6 +114,11 @@ void home_rx_task(void *pvParameters){
                              data.pt_readings[4],
                              data.pt_readings[5],
                              data.load_cell_reading);
+                    if (home_sensor_queue != NULL) {
+                        xQueueSendToBack(home_sensor_queue, &data, portMAX_DELAY);
+                    } else {
+                        ESP_LOGE(TAG, "Home sensor queue NULL, cannot forward received telemetry");
+                    }
                 }
             }
 

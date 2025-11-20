@@ -4,7 +4,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-typedef struct {
+typedef struct __attribute__((packed)){
     uint16_t pt_readings[6];
     uint8_t load_cell_reading;
     TickType_t timestamp;
