@@ -54,8 +54,7 @@ void set_servo_angle(gpio_num_t gpio_num, int angle, int max_angle) {
   ledc_channel_t channel = GPIO_TO_CHANNEL_MAP[gpio_num];
   int pulsewidth = SERVO_MIN_PW + (SERVO_MAX_PW - SERVO_MIN_PW) *
                                       (static_cast<float>(angle) / max_angle);
-  int duty_cycle = (pulsewidth * 1023) /
-                   SERVO_DUTY_PERIOD;  // 1024 is 2^10 for 10-bit resolution
+  int duty_cycle = (pulsewidth * MAX_DUTY) / SERVO_DUTY_PERIOD;
   ESP_LOGI("SERVO", "Angle: %d -> Pulsewidth: %lu us -> Duty: %lu", angle,
            pulsewidth, duty_cycle);
   ledc_set_duty(LEDC_MODE, channel, duty_cycle);

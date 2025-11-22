@@ -15,13 +15,13 @@ static const char* TAG = "COMMAND_EXE";
 void run_ignition_sequence() {
   set_ignition_relay_high();
   open_valve(Valve::kFuelRelease);
-  open_valve(Valve::kOxRelease);
+  open_valve(Valve::kGoxRelease);
 
   vTaskDelay(pdMS_TO_TICKS(5000));
 
   set_ignition_relay_low();
   close_valve(Valve::kFuelRelease);
-  close_valve(Valve::kOxRelease);
+  close_valve(Valve::kGoxRelease);
 }
 
 void run_command(command_t& command) {
