@@ -595,9 +595,9 @@ CONFIG_PARTITION_TABLE_MD5=y
 # GINAv2 Configuration
 #
 # CONFIG_HOME_SENDER is not set
-# CONFIG_HOME_RECEIVER is not set
+CONFIG_HOME_RECEIVER=y
 # CONFIG_AWAY_SENDER is not set
-CONFIG_AWAY_RECEIVER=y
+# CONFIG_AWAY_RECEIVER is not set
 # end of GINAv2 Configuration
 
 #

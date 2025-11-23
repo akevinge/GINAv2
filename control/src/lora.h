@@ -8,7 +8,7 @@ typedef struct __attribute__((packed)) {
     uint8_t parameters[4];
 } command_t;
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     uint8_t count;  // Number of telemetry packets in this batch
     TickType_t batch_timestamp;  // Timestamp for the whole batch
     sensor_data_t packets[0];  // Flexible array member - will hold our telemetry packets

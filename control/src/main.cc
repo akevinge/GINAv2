@@ -57,8 +57,16 @@ void setup_lora_tasks() {
 #endif  // CONFIG_AWAY_SENDER
 #ifdef CONFIG_HOME_RECEIVER
   ESP_LOGI(TAG, "Starting Home Receiver Configuration");
+
+  QueueHandle_t home_sensor_queue;
+  home_sensor_queue = xQueueCreate(
+      50, sizeof(sensor_data_t));  // Queue to hold incoming telemetry batches
+
   configure_lora();
-  xTaskCreatePinnedToCore(home_rx_task, "LoRa_RX_Task", 8192, NULL, 5, NULL,
+  xTaskCreatePinnedToCore(home_rx_task, "LoRa_RX_Task", 8192,
+                          (void*)home_sensor_queue, 5, NULL, tskNO_AFFINITY);
+  xTaskCreatePinnedToCore(telemetry_uartcom_task, "Telemetry_Uartcom_Task",
+                          8192, (void*)home_sensor_queue, 5, NULL,
                           tskNO_AFFINITY);
 #endif  // CONFIG_HOME_RECEIVER
 #ifdef CONFIG_AWAY_RECEIVER
@@ -93,6 +101,8 @@ extern "C" void app_main() {
   ESP_LOGI("MAIN", "Starting GINA Control Firmware");
   setup_valves();
   setup_ignition_relay();
+  init_load_cell();
+  init_pt_adc_spi();
   setup_lora_tasks();
   // set_ignition_relay_high();
   // vTaskDelay(pdMS_TO_TICKS(10000));  // Wait 10s
