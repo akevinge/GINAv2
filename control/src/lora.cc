@@ -121,11 +121,12 @@ void home_rx_task(void* pvParameters) {
           sensor_data_t& data = recieved->packets[i];
           ESP_LOGI(TAG,
                    "Packet %d - Timestamp: %u, PT Readings: [%d, %d, %d, %d, "
-                   "%d, %d], Load Cell: %d",
+                   "%d, %d, %d], Load Cell: %d",
                    i, (unsigned)data.timestamp, data.pt_readings[0],
                    data.pt_readings[1], data.pt_readings[2],
                    data.pt_readings[3], data.pt_readings[4],
-                   data.pt_readings[5], data.load_cell_reading);
+                   data.pt_readings[5], data.pt_readings[6],
+                   data.load_cell_reading);
           if (home_sensor_queue != NULL) {
             xQueueSendToBack(home_sensor_queue, &data, portMAX_DELAY);
           } else {

@@ -5,10 +5,19 @@
 
 #include <utility>
 
-#include "pt.h"
-
 // Uncomment to enable pressure transducer debug logging.
-// #define DEBUG_PT
+#define DEBUG_PT
+
+enum class Pt {
+  kChamber,
+  kInjectorGox,
+  kInjectorEth,
+  kEthN2Reg,
+  kEthLine,
+  kGoxReg,
+  kGoxLine,
+  kPtMax  // Not a valid PT, used for bounds checking.
+};
 
 struct PtConfig {
   // Chip select which identifies which ADC to read from.
@@ -49,8 +58,8 @@ constexpr PtConfig PT_CONFIGS[] = {
     },
     // kEthN2Reg,
     {
-        .cs = GPIO_NUM_4,
-        .channel = MCP320X_CHANNEL_3,
+        .cs = GPIO_NUM_6,
+        .channel = MCP320X_CHANNEL_1,
         .voltage_range = {0.5, 4.5},
         .max_pressure = 1000,
     },
@@ -64,14 +73,14 @@ constexpr PtConfig PT_CONFIGS[] = {
     // kGoxReg,
     {
         .cs = GPIO_NUM_6,
-        .channel = MCP320X_CHANNEL_1,
+        .channel = MCP320X_CHANNEL_2,
         .voltage_range = {0.5, 4.5},
         .max_pressure = 3000,
     },
     // kGoxLine
     {
         .cs = GPIO_NUM_6,
-        .channel = MCP320X_CHANNEL_2,
+        .channel = MCP320X_CHANNEL_3,
         .voltage_range = {0.5, 4.5},
         .max_pressure = 1000,
     },

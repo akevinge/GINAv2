@@ -1,8 +1,10 @@
 #include "sensor_management.h"
 
+#include <esp_log.h>
+
+#include "configs/pt_config.h"
 #include "load_cell.h"
 #include "pt.h"
-#include "pt_adc.h"
 
 #ifdef CONFIG_AWAY_SENDER
 void poll_sensor_task(void* pvParameters) {
@@ -10,9 +12,12 @@ void poll_sensor_task(void* pvParameters) {
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while (1) {
     sensor_data_t data;
-    for (int i = 0; i < static_cast<int>(Pt::kPtMax) - 1; ++i) {
-      // data.pt_readings[i] = read_pt_int(static_cast<Pt>(i));
-      data.pt_readings[i] = 10;
+    for (int i = 0; i < static_cast<int>(Pt::kPtMax); ++i) {
+      data.pt_readings[i] = static_cast<uint16_t>(read_pt(static_cast<Pt>(i)));
+      if (data.pt_readings[i] > 10) {
+        ESP_LOGI("SM", "HIGH HIGH %d reading: %d PSI", i,
+                 static_cast<int>(data.pt_readings[i]));
+      }
     }
     data.load_cell_reading = 10;
     data.timestamp = xTaskGetTickCount();

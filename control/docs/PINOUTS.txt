@@ -1,3 +1,24 @@
+Heltec Away Sender
+             +--------------------------------------------------+
+GPIO7 (18)   | <-- PT PORT MISO                 PT PORT CLK --> | GPIO19 (18)
+GPIO6 (17)   | <-- PT PORT CS2      AWAY                        | GPIO20 (17)
+GPIO5 (16)   | <-- PT PORT MOSI    SENDER                       | GPIO21 (16)
+GPIO4 (15)   | <-- PT PORT CS1                                  | GPIO26 (15)
+GPIO3 (14)   |                                LOAD PORT DIN --> | GPIO48 (14)
+GPIO2 (13)   |                               LOAD PORT SCLK --> | GPIO47 (13)
+GPIO1 (12)   |                                                  | GPIO33 (12)
+GPIO38 (11)  |                                                  | GPIO34 (11)
+GPIO39 (10)  |                                                  | GPIO35 (10)
+GPIO40 (9)   |                                                  | GPIO36 (9)
+GPIO41 (8)   |                                                  | GPIO0 (8)
+GPIO42 (7)   |                                                  | RST (7)
+GPIO45 (6)   |                                                  | GPIO43 (6)
+GPIO46 (5)   |                                                  | GPIO44 (5)
+GPIO37 (4)   |                                                  | Ve (4)
+3V (3)       |                                                  | Ve (3)
+3V (2)       |                        [PT PORT, LOAD PORT]  --> | 5V (2)
+GND (1)      |                        [PT PORT, LOAD PORT]  --> | GND (1)
+             +--------------------------------------------------+
 
 Pressure Trasnducer Port
 - Supports up to 8 pts
@@ -22,3 +43,4 @@ PW (1)    |                                                  | ADC1-0 (1)
           |    |      |     |      |    |     |    |     |   |
           |    V      V     V      V    V     V    V     V   |
           +--------------------------------------------------+
+

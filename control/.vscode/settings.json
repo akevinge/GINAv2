@@ -3,6 +3,8 @@
     "array": "cpp",
     "string_view": "cpp",
     "algorithm": "cpp",
-    "cstdint": "cpp"
+    "cstdint": "cpp",
+    "optional": "cpp",
+    "cstdlib": "cpp"
   }
 }

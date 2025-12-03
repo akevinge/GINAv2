@@ -99,11 +99,27 @@ void setup_lora_tasks() {
 
 extern "C" void app_main() {
   ESP_LOGI("MAIN", "Starting GINA Control Firmware");
-  setup_valves();
-  setup_ignition_relay();
-  init_load_cell();
+
+#ifdef CONFIG_AWAY_SENDER
+  ESP_LOGI(TAG, "Setting up ADC SPI...");
   init_pt_adc_spi();
+  ESP_LOGI(TAG, "Taring all pressure transducers...");
+  tare_all_pts(100, 10);
+
+  ESP_LOGI(TAG, "Initializing load cell...");
+  init_load_cell();
+#endif  // CONFIG_AWAY_SENDER
+
+#ifdef CONFIG_AWAY_RECEIVER
+  ESP_LOGI(TAG, "Initializing ADC calibration...");
+  setup_valves();
+
+  ESP_LOGI(TAG, "Setting up ignition relay...");
+  setup_ignition_relay();
+#endif  // CONFIG_AWAY_RECEIVER
+
   setup_lora_tasks();
+
   // set_ignition_relay_high();
   // vTaskDelay(pdMS_TO_TICKS(10000));  // Wait 10s
   // set_ignition_relay_low();

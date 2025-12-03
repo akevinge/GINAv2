@@ -2,19 +2,11 @@
 
 #include <cstdint>
 
-enum class Pt {
-  kChamber,
-  kInjectorGox,
-  kInjectorEth,
-  kEthN2Reg,
-  kEthLine,
-  kGoxReg,
-  kGoxLine,
-  kPtMax  // Not a valid PT, used for bounds checking.
-};
+#include "configs/pt_config.h"
 
 // Reads the pressure from the specified pressure transducer in PSI.
 float read_pt(Pt pt);
 
-// Reads the pressure from the specified pressure transducer as raw ADC value.
-uint16_t read_pt_int(Pt pt);
+// Tares all pressure transducers by taking the specified number of samples
+// and averaging them to set a zero reference point.
+void tare_all_pts(int samples, int delay_ms_between_samples = 10);

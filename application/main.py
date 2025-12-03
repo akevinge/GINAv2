@@ -206,8 +206,8 @@ class SerialReader(QThread):
 
     def run(self):
         buf = bytearray()
-        # expected payload: 6 * uint16 (12) + uint8 (1) + uint32 (4) = 17 bytes
-        expected_len = 6 * 2 + 1 + 4
+        # expected payload: 7 * uint16 (12) + uint8 (1) + uint32 (4) = 19 bytes
+        expected_len = 7 * 2 + 1 + 4
         while self._running and self._ser and self._ser.is_open:
             try:
                 available = self._ser.in_waiting
@@ -252,12 +252,12 @@ class SerialReader(QThread):
                             # ignore unexpected-length payloads
                             continue
 
-                        # parse payload: little-endian: 6H (uint16), B (uint8), I (uint32)
+                        # parse payload: little-endian: 7H (uint16), B (uint8), I (uint32)
                         try:
-                            # pt_readings: first 12 bytes
-                            pt_vals = list(struct.unpack("<6H", payload[0:12]))
-                            load = payload[12]
-                            timestamp = struct.unpack("<I", payload[13:17])[0]
+                            # pt_readings: first 14 bytes
+                            pt_vals = list(struct.unpack("<7H", payload[0:14]))
+                            load = payload[14]
+                            timestamp = struct.unpack("<I", payload[15:19])[0]
                             sensor = SensorData(
                                 pt_readings=pt_vals,
                                 load_cell_reading=load,
@@ -281,7 +281,7 @@ class SerialReader(QThread):
 
 @dataclass
 class SensorData:
-    pt_readings: List[int]  # 6 uint16 values
+    pt_readings: List[int]  # 7 uint16 values
     load_cell_reading: int  # uint8
     timestamp: int  # TickType_t assumed uint32
 
