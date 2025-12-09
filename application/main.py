@@ -1,10 +1,11 @@
+import serial
 import sys
 import time
+from dataclasses import dataclass, field
 from typing import Optional, List
-from PySide6.QtCore import Qt, QThread, Signal, Slot
-import serial
+
+from PySide6.QtCore import Qt, Slot
 from collections import deque
-from typing import List, Optional
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QDockWidget
 
@@ -23,14 +24,6 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QDockWidget
 #
 # Adjust command format to match your MCU's firmware protocol if needed.
 
-COMMAND_ACTION_CLOSE_ALL_VALVES = 0x00
-COMMAND_ACTION_OPEN_ALL_VALVES = 0x01
-COMMAND_ACTION_START_IGNITION_SEQUENCE = 0x02
-COMMAND_ACTION_OPEN_VALVE = 0x03
-COMMAND_ACTION_CLOSE_VALVE = 0x04
-
-import time
-from dataclasses import dataclass, field
 
 import config
 from serial_reader import SerialReader
@@ -47,10 +40,6 @@ SERIAL_PORT = "/dev/ttyUSB0"
 BAUD_RATE = 115200
 
 
-SOP_BYTE = b"\xff"
-EOP_BYTE = b"\xfe"
-
-
 @dataclass
 class Command:
     action: int
@@ -61,6 +50,9 @@ class Command:
         if len(self.parameters) != 4:
             raise ValueError("Parameters must be exactly 4 bytes")
         return bytes([self.action] + self.parameters)
+
+    def __str__(self):
+        return f"Command(action={self.action}, parameters={self.parameters})"
 
 
 from PySide6.QtWidgets import (
@@ -197,14 +189,15 @@ class TelemetryWidget(QWidget):
 
 class MainWindow(QMainWindow):
     DEFAULT_BAUD = 115200
-    VALVE_COUNT = 8
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("MCU COM Controller")
         self._serial: Optional[serial.Serial] = None
         self._reader: Optional[SerialReader] = None
-        self.valve_states: List[bool] = [False] * self.VALVE_COUNT  # False = closed
+        self.valve_states: List[bool] = [False] * len(
+            config.VALVE_TABLE
+        )  # False = closed
 
         self._init_ui()
         self.refresh_ports()
@@ -256,11 +249,13 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(cmd_group)
 
         # Valve grid
-        valves_group = QGroupBox(f"Per-valve control (0..{self.VALVE_COUNT - 1})")
+        valves_group = QGroupBox(
+            f"Per-valve control (0..{len(config.VALVE_TABLE) - 1})"
+        )
         valves_layout = QGridLayout(valves_group)
         self.valve_buttons = []
-        for i in range(self.VALVE_COUNT):
-            btn = QPushButton(f"Valve {i}: CLOSED")
+        for i in range(len(config.VALVE_TABLE)):
+            btn = QPushButton(f"Valve {config.VALVE_TABLE[i]}: CLOSED")
             btn.setCheckable(True)
             btn.setProperty("index", i)
             btn.clicked.connect(self.toggle_valve)
@@ -275,7 +270,7 @@ class MainWindow(QMainWindow):
         direct_layout = QHBoxLayout(direct_group)
         direct_layout.addWidget(QLabel("Valve #:"))
         self.direct_spin = QSpinBox()
-        self.direct_spin.setRange(0, self.VALVE_COUNT - 1)
+        self.direct_spin.setRange(0, len(config.VALVE_TABLE) - 1)
         direct_layout.addWidget(self.direct_spin)
         self.direct_open_btn = QPushButton("Open")
         self.direct_open_btn.clicked.connect(self.direct_open)
@@ -448,8 +443,8 @@ class MainWindow(QMainWindow):
         event.accept()
 
     def send_command(self, cmd: Command):
-        payload = SOP_BYTE + cmd.to_bytes() + EOP_BYTE
-        print(payload)
+        payload = config.COMMAND_SOP_BYTE + cmd.to_bytes() + config.COMMAND_EOP_BYTE
+        print(f"Sending command: {cmd}")
         if not (self._serial and self._serial.is_open):
             QMessageBox.warning(self, "Not connected", "UART port is not connected.")
             return
@@ -463,18 +458,18 @@ class MainWindow(QMainWindow):
 
     # Command handlers
     def open_all_valves(self):
-        self.send_command(Command(action=COMMAND_ACTION_OPEN_ALL_VALVES))
+        self.send_command(Command(action=config.COMMAND_ACTION_OPEN_ALL_VALVES))
         # update UI states assuming MCU accepted command
-        self.valve_states = [True] * self.VALVE_COUNT
+        self.valve_states = [True] * len(config.VALVE_TABLE)
         self._update_valve_buttons()
 
     def close_all_valves(self):
-        self.send_command(Command(action=COMMAND_ACTION_CLOSE_ALL_VALVES))
-        self.valve_states = [False] * self.VALVE_COUNT
+        self.send_command(Command(action=config.COMMAND_ACTION_CLOSE_ALL_VALVES))
+        self.valve_states = [False] * len(config.VALVE_TABLE)
         self._update_valve_buttons()
 
     def start_igniter(self):
-        self.send_command(Command(action=COMMAND_ACTION_START_IGNITION_SEQUENCE))
+        self.send_command(Command(action=config.COMMAND_ACTION_START_IGNITION_SEQUENCE))
 
     def toggle_valve(self):
         btn = self.sender()
@@ -482,12 +477,14 @@ class MainWindow(QMainWindow):
             return
         idx = int(btn.property("index"))
         new_state = btn.isChecked()
-        command = Command()
-        if new_state:
-            command.action = COMMAND_ACTION_OPEN_VALVE
-        else:
-            command.action = COMMAND_ACTION_CLOSE_VALVE
-        command.parameters = [idx, 0, 0, 0]
+        command = Command(
+            action=(
+                config.COMMAND_ACTION_OPEN_VALVE
+                if new_state
+                else config.COMMAND_ACTION_CLOSE_VALVE
+            ),
+            parameters=[idx, 0, 0, 0],
+        )
         self.send_command(command)
         self.valve_states[idx] = new_state
         self._update_valve_buttons()
@@ -495,14 +492,16 @@ class MainWindow(QMainWindow):
     def direct_open(self):
         idx = self.direct_spin.value()
         self.send_command(
-            Command(action=COMMAND_ACTION_OPEN_VALVE, parameters=[idx, 0, 0, 0])
+            Command(action=config.COMMAND_ACTION_OPEN_VALVE, parameters=[idx, 0, 0, 0])
         )
         self.valve_states[idx] = True
         self._update_valve_buttons()
 
     def direct_close(self):
         idx = self.direct_spin.value()
-        command = Command(action=COMMAND_ACTION_CLOSE_VALVE, parameters=[idx, 0, 0, 0])
+        command = Command(
+            action=config.COMMAND_ACTION_CLOSE_VALVE, parameters=[idx, 0, 0, 0]
+        )
         self.send_command(command)
         self.valve_states[idx] = False
         self._update_valve_buttons()
