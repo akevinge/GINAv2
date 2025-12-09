@@ -29,10 +29,11 @@ COMMAND_ACTION_START_IGNITION_SEQUENCE = 0x02
 COMMAND_ACTION_OPEN_VALVE = 0x03
 COMMAND_ACTION_CLOSE_VALVE = 0x04
 
-import struct
-import serial
 import time
 from dataclasses import dataclass, field
+
+import config
+from serial_reader import SerialReader
 
 
 # --- Configuration ---
@@ -192,98 +193,6 @@ class TelemetryWidget(QWidget):
         """
         self.update_pressures(pressures)
         self.update_loadcell(load)
-
-
-class SerialReader(QThread):
-    # Emit parsed SensorData objects when a valid framed packet is received
-    data_received = Signal(object)
-    error = Signal(str)
-
-    def __init__(self, ser: serial.Serial):
-        super().__init__(parent=None)
-        self._ser = ser
-        self._running = True
-
-    def run(self):
-        buf = bytearray()
-        # expected payload: 7 * uint16 (12) + uint8 (1) + uint32 (4) = 19 bytes
-        expected_len = 7 * 2 + 1 + 4
-        while self._running and self._ser and self._ser.is_open:
-            try:
-                available = self._ser.in_waiting
-                if available:
-                    print("available data")
-                    chunk = self._ser.read(available)
-                    if chunk:
-                        buf.extend(chunk)
-
-                    # process buffer looking for framed packets SOP..payload..EOP
-                    while True:
-                        try:
-                            # find SOP (single byte)
-                            sop_idx = buf.index(SOP_BYTE)
-                            print("Found SOP at index", sop_idx)
-                        except ValueError:
-                            # no SOP yet; avoid unbounded growth
-                            if len(buf) > 4096:
-                                buf.clear()
-                            break
-
-                        # find EOP after SOP
-                        try:
-                            eop_idx = buf.index(EOP_BYTE, sop_idx + 1)
-                            print("Found EOP at index", sop_idx)
-                        except ValueError:
-                            # wait for more data; but drop bytes before SOP to keep buffer small
-                            if sop_idx > 0:
-                                del buf[:sop_idx]
-                            break
-
-                        # extract payload between SOP and EOP
-                        payload = bytes(buf[sop_idx + 1 : eop_idx])
-                        # remove processed bytes from buffer
-                        del buf[: eop_idx + 1]
-
-                        if len(payload) != expected_len:
-                            print(
-                                "Wrong Length:", len(payload), "expected", expected_len
-                            )
-                            print("Payload:", payload)
-                            # ignore unexpected-length payloads
-                            continue
-
-                        # parse payload: little-endian: 7H (uint16), B (uint8), I (uint32)
-                        try:
-                            # pt_readings: first 14 bytes
-                            pt_vals = list(struct.unpack("<7H", payload[0:14]))
-                            load = payload[14]
-                            timestamp = struct.unpack("<I", payload[15:19])[0]
-                            sensor = SensorData(
-                                pt_readings=pt_vals,
-                                load_cell_reading=load,
-                                timestamp=timestamp,
-                            )
-                            self.data_received.emit(sensor)
-                        except Exception as e:
-                            self.error.emit(f"Parse error: {e}")
-                            continue
-                else:
-                    # small sleep to avoid busy loop
-                    self.msleep(50)
-            except Exception as e:
-                self.error.emit(str(e))
-                break
-
-    def stop(self):
-        self._running = False
-        self.wait(200)
-
-
-@dataclass
-class SensorData:
-    pt_readings: List[int]  # 7 uint16 values
-    load_cell_reading: int  # uint8
-    timestamp: int  # TickType_t assumed uint32
 
 
 class MainWindow(QMainWindow):
@@ -468,7 +377,13 @@ class MainWindow(QMainWindow):
             self._serial = None
             return
 
-        self._reader = SerialReader(self._serial)
+        self._reader = SerialReader(
+            ser=self._serial,
+            sop_byte=config.SOP_BYTE,
+            eop_byte=config.EOP_BYTE,
+            payload_parser=config.SensorDataParser(),
+            max_buffer_size=config.MAX_SERIAL_BUFFER_SIZE,
+        )
         self._reader.data_received.connect(self.on_data_received)
         self._reader.error.connect(self.on_serial_error)
         self._reader.start()
@@ -496,9 +411,9 @@ class MainWindow(QMainWindow):
         self._set_controls_enabled(False)
 
     @Slot(object)
-    def on_data_received(self, sensor):
+    def on_data_received(self, sensor: config.SensorData):
         # If an unexpected type is received, log generically
-        if not isinstance(sensor, SensorData):
+        if not isinstance(sensor, config.SensorData):
             self.log(f"RX (unknown): {sensor}")
             return
 
