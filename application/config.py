@@ -44,12 +44,29 @@ COMMAND_ACTION_START_IGNITION_SEQUENCE = 0x02
 COMMAND_ACTION_OPEN_VALVE = 0x03
 COMMAND_ACTION_CLOSE_VALVE = 0x04
 
-VALVE_TABLE = [
-    "PressurizeFuelTank",
-    "PreslugFuel",
-    "N2PurgeFuelTankBypass",
-    "N2PurgeGox",
-    "PreslugGox",
-    "GoxRelease",
-    "FuelRelease",
-]
+VALVE_MAP = {
+    "fuel_press": 0,
+    "fuel_preslug": 1,
+    "fuel_n2_purge": 2,
+    "gox_n2_purge": 3,
+    "gox_preslug": 4,
+    "gox_release": 5,
+    "fuel_release": 6,
+}
+
+# If a valve in the key is being opened, the valve in the value must be closed first.
+VALVE_INTERLOCKS = {
+    "gox_n2_purge": "gox_preslug",
+    "fuel_n2_purge": "fuel_preslug",
+}
+
+
+SENSOR_MAP = {
+    "chamber_pt": 0,
+    "gox_inj_pt": 1,
+    "fuel_inj_pt": 2,
+    "fuel_n2_pt": 3,
+    "fuel_line_pt": 4,
+    "gox_reg_pt": 5,
+    "gox_line_pt": 6,
+}

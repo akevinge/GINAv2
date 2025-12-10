@@ -113,11 +113,11 @@ class SerialReader(QThread):
             # Validate and parse payload
             if len(raw_payload) == self.payload_parser.get_expected_length():
                 self._parse_payload(raw_payload)
-            else:
-                self.error.emit(
-                    f"Invalid payload length: {len(raw_payload)} "
-                    f"(expected {self.payload_parser.get_expected_length()})"
-                )
+            # else:
+            #     self.error.emit(
+            #         f"Invalid payload length: {len(raw_payload)} "
+            #         f"(expected {self.payload_parser.get_expected_length()})"
+            # )
 
     def _parse_payload(self, payload: bytes):
         """
