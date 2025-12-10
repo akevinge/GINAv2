@@ -1,3 +1,4 @@
 ginavenv/
 **/venv
 **/.venv
+**/.vscode/
