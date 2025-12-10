@@ -407,3 +407,19 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
+
+gox_inlet_ps_psi = [bar_to_psi(params.chamber_P * (1 + dp)) for dp in gox_dps]
+plt.figure(figsize=(8, 5))
+plt.plot(ofs, gox_inlet_ps_psi, label="GOX Inlet P (psi)", marker="o")
+plt.xlabel("O/F Ratio")
+plt.ylabel("GOX Inlet Pressure (psi)")
+plt.title("Effect of O/F Ratio on GOX Inlet Pressure")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+print(
+    "Ethanol inlet P (psi):",
+    bar_to_psi(params.chamber_P * (1 + params.ethanol_inlet_dP_frac)),
+)
