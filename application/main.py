@@ -509,6 +509,8 @@ class MainWindow(QMainWindow):
                 + ", ".join([f"PT{i}={p}psi" for i, p in enumerate(sensor.pt_readings)])
                 + f", LoadCell={sensor.load_cell_reading}lbs\n"
             )
+            self.log_file.write(log_line)
+            self.log_file.flush()
         except Exception as e:
             print(f"Error parsing sensor data: {e}")
 
