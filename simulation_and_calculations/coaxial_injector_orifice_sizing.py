@@ -5,16 +5,8 @@ import matplotlib.pyplot as plt
 from copy import copy
 from typing import Callable
 
-from pyfluids import Fluid, FluidsList, Input
-from scipy.constants import convert_temperature, bar, psi
-
-
-def bar_to_pa(p):
-    return p * bar
-
-
-def bar_to_psi(p):
-    return (p * bar) / psi
+from conversions import bar_to_pa, bar_to_psi, pa_to_bar
+from properties import get_eth_density, get_gox_density
 
 
 def optional_print(s: str, should_print: bool = False):
@@ -24,6 +16,7 @@ def optional_print(s: str, should_print: bool = False):
 
 @dataclasses.dataclass
 class Parameters:
+    num_elements: int
     chamber_P: float
     of: float
     total_m_float_rate: float
@@ -52,28 +45,6 @@ TOTAL_M_FLOW_RATE = 0.1442994641
 
 def separate_m_flow_rate(m_flow: float, of: float) -> tuple[float, float]:
     return (m_flow * (of / (1 + of)), m_flow * (1 / (of + 1)))
-
-
-def get_gox_density(p: float, t: float) -> float:
-    return (
-        Fluid(FluidsList.Oxygen, 100)
-        .with_state(
-            Input.pressure(p),
-            Input.temperature(convert_temperature(t, "K", "C")),
-        )
-        .density
-    )
-
-
-def get_eth_density(p: float, t: float) -> float:
-    return (
-        Fluid(FluidsList.Ethanol, 100)
-        .with_state(
-            Input.pressure(p),
-            Input.temperature(convert_temperature(t, "K", "C")),
-        )
-        .density
-    )
 
 
 def is_choked_flow(p1: float, p2: float, gamma: float):
@@ -200,14 +171,14 @@ def calculate_p1(
 
 
 def calculate_injector_element_geometry(
-    num_elements: int, P: Parameters, should_print: bool = False
+    P: Parameters, should_print: bool = False
 ) -> SizingOutcomes:
     """
     Calculates the geometry for a single injector element given the total
     number of elements on the faceplate.
     """
     optional_print(
-        f"\n-------- Calculating for {num_elements} Element(s) --------", should_print
+        f"\n-------- Calculating for {P.num_elements} Element(s) --------", should_print
     )
     optional_print(params, should_print)
 
@@ -219,7 +190,7 @@ def calculate_injector_element_geometry(
     optional_print(f"ΔGOX P: {bar_to_psi(gox_dP)} psi", should_print)
 
     # --- Mass Flow Per Element ---
-    m_flow_rate_per_element = P.total_m_float_rate / num_elements
+    m_flow_rate_per_element = P.total_m_float_rate / P.num_elements
     gox_m_flow_rate, ethanol_m_flow_rate = separate_m_flow_rate(
         m_flow=m_flow_rate_per_element, of=P.of
     )
@@ -229,34 +200,39 @@ def calculate_injector_element_geometry(
     ethanol_inlet_density = get_eth_density(p=bar_to_pa(eth_inlet_p), t=ETHANOL_INLET_T)
 
     # --- GOX Orifice Area Calculation (Unchoked Flow) ---
-    if is_choked_flow(p1=gox_inlet_p, p2=P.chamber_P, gamma=GOX_GAMMA):
+    is_choked = is_choked_flow(p1=gox_inlet_p, p2=P.chamber_P, gamma=GOX_GAMMA)
+
+    if is_choked:
         optional_print(
             "----------> Calculating for compressible choked flow", should_print
         )
-        A_gox = choked_flow_area(
-            m_flow_rate=gox_m_flow_rate,
-            p1=bar_to_pa(gox_inlet_p),
-            rho1=gox_inlet_density,
-            gamma=GOX_GAMMA,
-        )
-        Vel_gox = gox_m_flow_rate / (gox_inlet_density * A_gox)
-        optional_print(f"GOX orifice area: {A_gox * 1e6} mm^2", should_print)
-        optional_print(f"GOX velocity at the orifice: {Vel_gox} m/s", should_print)
     else:
         # https://en.wikipedia.org/wiki/Orifice_plate#Compressible_flow
         optional_print(
             "----------> Caculating for compressible un-choked flow", should_print
         )
-        A_gox = compressible_flow_area(
+    A_gox = (
+        choked_flow_area(
+            m_flow_rate=gox_m_flow_rate,
+            p1=bar_to_pa(gox_inlet_p),
+            rho1=gox_inlet_density,
+            gamma=GOX_GAMMA,
+        )
+        if is_choked
+        else compressible_flow_area(
             m_flow_rate=gox_m_flow_rate,
             p1=bar_to_pa(gox_inlet_p),
             p2=bar_to_pa(P.chamber_P),
             rho1=gox_inlet_density,
             gamma=GOX_GAMMA,
         )
-        Vel_gox = gox_m_flow_rate / (gox_inlet_density * A_gox)
-        optional_print(f"GOX orifice area: {A_gox * 1e6} mm^2", should_print)
-        optional_print(f"GOX velocity at the orifice: {Vel_gox} m/s", should_print)
+    )
+    Vel_gox = gox_m_flow_rate / (gox_inlet_density * A_gox)
+
+    optional_print(f"GOX orifice area (per element): {A_gox * 1e6} mm^2", should_print)
+    optional_print(
+        f"GOX velocity at the orifice (per element): {Vel_gox} m/s", should_print
+    )
 
     # --- Ethanol Orifice Area Calculation ---
     A_eth = ethanol_m_flow_rate / (
@@ -298,8 +274,13 @@ def calculate_injector_element_geometry(
     optional_print(
         f"Mass Flow Rate per Element: {m_flow_rate_per_element:.4f} kg/s", should_print
     )
-    optional_print(f"Required GOX Orifice Area: {A_gox_mm2:.4f} mm^2", should_print)
-    optional_print(f"Required Ethanol Orifice Area: {A_eth_mm2:.4f} mm^2", should_print)
+    optional_print(
+        f"Required GOX Orifice Area (per element): {A_gox_mm2:.4f} mm^2", should_print
+    )
+    optional_print(
+        f"Required Ethanol Orifice Area (per element): {A_eth_mm2:.4f} mm^2",
+        should_print,
+    )
     optional_print("\n--- Single Element Dimensions ---", should_print)
     optional_print(f"Ethanol Inner Diameter (ID): {D_eth_inner:.4f} mm", should_print)
     optional_print(
@@ -337,6 +318,7 @@ def calculate_vel_at_fixed_A(
 
 
 params = Parameters(
+    num_elements=2,
     chamber_P=20,
     total_m_float_rate=TOTAL_M_FLOW_RATE,
     of=1.3,
@@ -345,12 +327,11 @@ params = Parameters(
     coaxial_post_wall_thickness_mm=0.5,
 )
 
-sizing = calculate_injector_element_geometry(
-    num_elements=2, P=params, should_print=True
-)
+sizing = calculate_injector_element_geometry(P=params, should_print=True)
 
 ofs = np.linspace(1.0, 5.0, 20)
 vel_ratios_gox = []
+gox_velocities = []
 gox_dps = []
 
 for of in ofs:
@@ -360,7 +341,7 @@ for of in ofs:
 
     gox_m_flow_rate, _ = separate_m_flow_rate(m_flow=params.total_m_float_rate, of=of)
     adjusted_gox_inlet_p = calculate_p1(
-        target_mdot=gox_m_flow_rate / 2,
+        target_mdot=gox_m_flow_rate / params.num_elements,
         A=sizing.A_gox,
         p1_guess=bar_to_pa(design_gox_inlet_p),
         p2=bar_to_pa(params.chamber_P),
@@ -370,10 +351,10 @@ for of in ofs:
         max_iter=10000,
         tol=1e-6,
     )
-    print(f"Adjusted GOX P: {adjusted_gox_inlet_p / bar}")
+    print(f"Adjusted GOX P (bar): {pa_to_bar(adjusted_gox_inlet_p)}")
 
     out = calculate_vel_at_fixed_A(
-        m_dot=params.total_m_float_rate,
+        m_dot=params.total_m_float_rate / params.num_elements,
         of=of,
         gox_inlet_p=adjusted_gox_inlet_p,
         eth_inlet_p=bar_to_pa(design_eth_inlet_p),
@@ -386,6 +367,7 @@ for of in ofs:
     )
     print(of, out)
 
+    gox_velocities.append(out[0])
     vel_ratios_gox.append((out[0] / out[1]))
 
 plt.figure(figsize=(8, 5))
@@ -414,6 +396,23 @@ plt.plot(ofs, gox_inlet_ps_psi, label="GOX Inlet P (psi)", marker="o")
 plt.xlabel("O/F Ratio")
 plt.ylabel("GOX Inlet Pressure (psi)")
 plt.title("Effect of O/F Ratio on GOX Inlet Pressure")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+GOX_SPECIFIC_HEAT_RATIO = 1.4  # Common assumption for diatomic
+R = 259.8  # J/(kgK)
+T = 300  # Room temp (K)
+C = math.sqrt(GOX_SPECIFIC_HEAT_RATIO * R * T)
+gox_maches = np.asarray(gox_velocities) / C
+
+plt.figure(figsize=(8, 5))
+plt.plot(ofs, gox_maches, label="GOX Mach", marker="o")
+plt.xlabel("O/F Ratio")
+plt.ylabel("GOX Mach")
+plt.title("Effect of O/F Ratio on GOX Mach")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
