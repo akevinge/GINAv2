@@ -1,5 +1,6 @@
 #include "sensor_management.h"
 
+#include <esp_err.h>
 #include <esp_log.h>
 
 #include "configs/pt_config.h"
@@ -19,7 +20,16 @@ void poll_sensor_task(void* pvParameters) {
                  static_cast<int>(data.pt_readings[i]));
       }
     }
-    data.load_cell_reading = 10;
+    uint32_t load_reading = 0;
+    esp_err_t load_read_err = read_raw_load_cell(&load_reading);
+    if (load_read_err != ESP_OK) {
+      ESP_LOGE("SM", "Error reading load cell: %s",
+               esp_err_to_name(load_read_err));
+      data.load_cell_reading = 0;
+    } else {
+      data.load_cell_reading = load_reading;
+      ESP_LOGI("SM", "Load cell reading: %d", static_cast<int>(load_reading));
+    }
     data.timestamp = xTaskGetTickCount();
     // Send sensor data to the queue
     xQueueSendToFront(

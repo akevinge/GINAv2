@@ -13,21 +13,21 @@ MAX_SERIAL_BUFFER_SIZE = 4096  # Prevent unbounded buffer growth
 @dataclass
 class SensorData:
     pt_readings: List[int]  # 7 uint16 values
-    load_cell_reading: int  # uint8
+    load_cell_reading: int  # uint32
     timestamp: int  # TickType_t assumed uint32
 
 
 class SensorDataParser(PayloadParser):
     def get_expected_length(self) -> int:
-        return 7 * 2 + 1 + 4  # 19 bytes
+        return (7 * 2) + 4 + 4  # 7 uint16 + 1 uint32 + 1 uint32 = 22 bytes
 
     def parse(self, payload: bytes) -> SensorData:
         if len(payload) != self.get_expected_length():
             raise ValueError("Invalid payload length")
 
         pt_readings = list(struct.unpack("<7H", payload[0:14]))
-        load_cell_reading = struct.unpack("<B", payload[14:15])[0]
-        timestamp = struct.unpack("<I", payload[15:19])[0]
+        load_cell_reading = struct.unpack("<I", payload[14:18])[0]
+        timestamp = struct.unpack("<I", payload[18:22])[0]
 
         return SensorData(
             pt_readings=pt_readings,

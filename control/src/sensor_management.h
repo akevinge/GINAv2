@@ -9,7 +9,7 @@
 
 typedef struct __attribute__((packed)) {
   uint16_t pt_readings[static_cast<size_t>(Pt::kPtMax)];
-  uint8_t load_cell_reading;
+  uint32_t load_cell_reading;
   TickType_t timestamp;
 } sensor_data_t;
 
