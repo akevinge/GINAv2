@@ -187,8 +187,9 @@ class MainWindow(QMainWindow):
         )
 
         # Serial Vars
-        self._serial: Optional[serial.Serial] = None
-        self._reader: Optional[SerialReader] = None
+        self._telemetry_serial: Optional[serial.Serial] = None
+        self._telemetry_reader: Optional[SerialReader] = None
+        self._command_serial: Optional[serial.Serial] = None
 
         # UI Setup
         central = QWidget()
@@ -241,31 +242,54 @@ class MainWindow(QMainWindow):
 
         # Initial Logic Check
         self.pid.check_flow_logic()
-        self.refresh_ports()
+        self.refresh_telemetry_ports()
+        self.refresh_command_ports()
         self._set_controls_enabled(False)
 
     def setup_connection_ui(self, parent_layout):
-        conn_group = QGroupBox("Connection")
-        l = QGridLayout(conn_group)
+        telem_conn_group = QGroupBox("Telemetry Connection")
+        telem_l = QGridLayout(telem_conn_group)
 
-        self.port_combo = QComboBox()
-        l.addWidget(QLabel("Port:"), 0, 0)
-        l.addWidget(self.port_combo, 0, 1)
+        self.telemetry_port_combo = QComboBox()
+        telem_l.addWidget(QLabel("Port:"), 0, 0)
+        telem_l.addWidget(self.telemetry_port_combo, 0, 1)
 
         refresh_btn = QPushButton("R")
         refresh_btn.setFixedWidth(30)
-        refresh_btn.clicked.connect(self.refresh_ports)
-        l.addWidget(refresh_btn, 0, 2)
+        refresh_btn.clicked.connect(self.refresh_telemetry_ports)
+        telem_l.addWidget(refresh_btn, 0, 2)
 
         self.baud_input = QLineEdit(str(self.DEFAULT_BAUD))
-        l.addWidget(QLabel("Baud:"), 1, 0)
-        l.addWidget(self.baud_input, 1, 1, 1, 2)
+        telem_l.addWidget(QLabel("Baud:"), 1, 0)
+        telem_l.addWidget(self.baud_input, 1, 1, 1, 2)
 
-        self.connect_btn = QPushButton("Connect")
-        self.connect_btn.clicked.connect(self.toggle_connection)
-        l.addWidget(self.connect_btn, 2, 0, 1, 3)
+        self.telemetry_connect_btn = QPushButton("Connect")
+        self.telemetry_connect_btn.clicked.connect(self.toggle_telemetry_connection)
+        telem_l.addWidget(self.telemetry_connect_btn, 2, 0, 1, 3)
 
-        parent_layout.addWidget(conn_group)
+        parent_layout.addWidget(telem_conn_group)
+
+        cmd_conn_group = QGroupBox("Command Connection")
+        cmd_l = QGridLayout(cmd_conn_group)
+
+        self.command_port_combo = QComboBox()
+        cmd_l.addWidget(QLabel("Port:"), 0, 0)
+        cmd_l.addWidget(self.command_port_combo, 0, 1)
+
+        refresh_btn = QPushButton("R")
+        refresh_btn.setFixedWidth(30)
+        refresh_btn.clicked.connect(self.refresh_command_ports)
+        cmd_l.addWidget(refresh_btn, 0, 2)
+
+        self.baud_input = QLineEdit(str(self.DEFAULT_BAUD))
+        cmd_l.addWidget(QLabel("Baud:"), 1, 0)
+        cmd_l.addWidget(self.baud_input, 1, 1, 1, 2)
+
+        self.command_connect_btn = QPushButton("Connect")
+        self.command_connect_btn.clicked.connect(self.toggle_command_connection)
+        cmd_l.addWidget(self.command_connect_btn, 2, 0, 1, 3)
+
+        parent_layout.addWidget(cmd_conn_group)
 
     def setup_valve_ui(self, parent_layout):
         scroll = QScrollArea()
@@ -330,59 +354,105 @@ class MainWindow(QMainWindow):
 
     # --- SERIAL LOGIC ---
 
-    def refresh_ports(self):
-        self.port_combo.clear()
+    def refresh_command_ports(self):
+        self.command_port_combo.clear()
         ports = serial.tools.list_ports.comports()
         for p in ports:
-            self.port_combo.addItem(f"{p.device} ({p.description})", p.device)
+            if "usb" in p.device.lower():
+                self.command_port_combo.addItem(
+                    f"{p.device} ({p.description})", p.device
+                )
         if not ports:
-            self.port_combo.addItem("No ports", "")
+            self.command_port_combo.addItem("No ports", "")
 
-    def toggle_connection(self):
-        if self._serial and self._serial.is_open:
-            self.disconnect_serial()
+    def refresh_telemetry_ports(self):
+        self.telemetry_port_combo.clear()
+        ports = serial.tools.list_ports.comports()
+        for p in ports:
+            if "usb" in p.device.lower():
+                self.telemetry_port_combo.addItem(
+                    f"{p.device} ({p.description})", p.device
+                )
+        if not ports:
+            self.telemetry_port_combo.addItem("No ports", "")
+
+    def toggle_command_connection(self):
+        if self._command_serial and self._command_serial.is_open:
+            self.disconnect_command_serial()
         else:
-            self.connect_serial()
+            self.connect_command_serial()
 
-    def connect_serial(self):
-        port_data = self.port_combo.currentData()
+    def connect_command_serial(self):
+        port_data = self.command_port_combo.currentData()
         if not port_data:
             return
 
         try:
             baud = int(self.baud_input.text())
-            self._serial = serial.Serial(port=port_data, baudrate=baud, timeout=0.1)
+            self._command_serial = serial.Serial(
+                port=port_data, baudrate=baud, timeout=0.1
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Connection failed: {e}")
+            return
+
+        self.command_connect_btn.setText("Disconnect")
+        self.command_connect_btn.setStyleSheet("background-color: #004400;")
+
+    def disconnect_command_serial(self):
+        if self._command_serial:
+            self._command_serial.close()
+        self._command_serial = None
+        self.command_connect_btn.setText("Connect")
+        self.command_connect_btn.setStyleSheet("")
+
+    def toggle_telemetry_connection(self):
+        if self._telemetry_serial and self._telemetry_serial.is_open:
+            self.disconnect_telemetry_serial()
+        else:
+            self.connect_telemetry_serial()
+
+    def connect_telemetry_serial(self):
+        port_data = self.telemetry_port_combo.currentData()
+        if not port_data:
+            return
+
+        try:
+            baud = int(self.baud_input.text())
+            self._telemetry_serial = serial.Serial(
+                port=port_data, baudrate=baud, timeout=0.1
+            )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Connection failed: {e}")
             return
 
         # Start Reader Thread
-        self._reader = SerialReader(
-            ser=self._serial,
+        self._telemetry_reader = SerialReader(
+            ser=self._telemetry_serial,
             sop_byte=config.SOP_BYTE,
             eop_byte=config.EOP_BYTE,
             payload_parser=config.SensorDataParser(),
             max_buffer_size=config.MAX_SERIAL_BUFFER_SIZE,
         )
-        self._reader.data_received.connect(self.on_data_received)
-        self._reader.error.connect(
+        self._telemetry_reader.data_received.connect(self.on_data_received)
+        self._telemetry_reader.error.connect(
             lambda msg: QMessageBox.warning(self, "Serial Error", msg)
         )
-        self._reader.start()
+        self._telemetry_reader.start()
 
-        self.connect_btn.setText("Disconnect")
-        self.connect_btn.setStyleSheet("background-color: #004400;")
+        self.telemetry_connect_btn.setText("Disconnect")
+        self.telemetry_connect_btn.setStyleSheet("background-color: #004400;")
         self._set_controls_enabled(True)
 
-    def disconnect_serial(self):
-        if self._reader:
-            self._reader.stop()
-        if self._serial:
-            self._serial.close()
-        self._serial = None
-        self._reader = None
-        self.connect_btn.setText("Connect")
-        self.connect_btn.setStyleSheet("")
+    def disconnect_telemetry_serial(self):
+        if self._telemetry_reader:
+            self._telemetry_reader.stop()
+        if self._telemetry_serial:
+            self._telemetry_serial.close()
+        self._telemetry_serial = None
+        self._telemetry_reader = None
+        self.telemetry_connect_btn.setText("Connect")
+        self.telemetry_connect_btn.setStyleSheet("")
         self._set_controls_enabled(False)
 
     def _set_controls_enabled(self, enabled):
@@ -392,13 +462,13 @@ class MainWindow(QMainWindow):
             cb.setEnabled(enabled)
 
     def send_command(self, cmd: Command):
-        if not (self._serial and self._serial.is_open):
+        if not (self._command_serial and self._command_serial.is_open):
             print("Serial not connected, command ignored.")
             return
 
         try:
             payload = config.COMMAND_SOP_BYTE + cmd.to_bytes() + config.COMMAND_EOP_BYTE
-            self._serial.write(payload)
+            self._command_serial.write(payload)
             print(f"TX: {cmd}")
             # Write to log file
             self.log_file.write(f"TX: {cmd}\n")
@@ -515,7 +585,8 @@ class MainWindow(QMainWindow):
             print(f"Error parsing sensor data: {e}")
 
     def closeEvent(self, event):
-        self.disconnect_serial()
+        self.disconnect_telemetry_serial()
+        self.disconnect_command_serial()
         event.accept()
 
 
