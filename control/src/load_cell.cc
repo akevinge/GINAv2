@@ -1,6 +1,7 @@
 #include "load_cell.h"
 
 #include <esp_err.h>
+#include <esp_log.h>
 
 #include <cstdint>
 
@@ -15,16 +16,19 @@ hx711_t dev = {
 
 void init_load_cell() { ESP_ERROR_CHECK(hx711_init(&dev)); }
 
-esp_err_t read_raw_load_cell(int32_t* value) {
+esp_err_t read_raw_load_cell(uint32_t* value) {
   esp_err_t r = hx711_wait(&dev, HX711_MAX_TIMEOUT_MS);
   if (r != ESP_OK) {
     return r;
   }
 
-  r = hx711_read_average(&dev, HX711_AVG_SAMPLE_COUNT, value);
+  int32_t val = 0;
+  r = hx711_read_average(&dev, HX711_AVG_SAMPLE_COUNT, &val);
+  ESP_LOGI("LC", "Raw load cell reading: %d", val);
   if (r != ESP_OK) {
     return r;
   }
+  *value = static_cast<uint32_t>(val);
 
   return ESP_OK;
 }
