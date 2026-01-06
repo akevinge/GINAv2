@@ -14,9 +14,13 @@ static const char* TAG = "COMMAND_EXE";
 
 void run_ignition_sequence() {
   set_ignition_relay_high();
+  // Wait for 0.25s to ensure flame is established.
+  vTaskDelay(pdMS_TO_TICKS(250));
+
   open_valve(Valve::kFuelRelease);
   open_valve(Valve::kGoxRelease);
 
+  // Hotfire for 5s.
   vTaskDelay(pdMS_TO_TICKS(5000));
 
   set_ignition_relay_low();

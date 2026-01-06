@@ -6,7 +6,7 @@
 #include <utility>
 
 // Uncomment to enable pressure transducer debug logging.
-#define DEBUG_PT
+// #define DEBUG_PT
 
 enum class Pt {
   kChamber,

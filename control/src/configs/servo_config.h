@@ -11,7 +11,7 @@ constexpr ledc_timer_bit_t LEDC_DUTY_RES = LEDC_TIMER_14_BIT;
 constexpr int MAX_DUTY = (1 << static_cast<int>(LEDC_DUTY_RES)) - 1;
 // The frequency rate for DSSERVO DS3225MG 25KG servo is 50-330Hz PWM frequency.
 // This was tested up to 600Hz on the, which still worked.
-constexpr int LEDC_FREQUENCY = 50;
+constexpr int LEDC_FREQUENCY = 100;
 
 // Min pulse width in microseconds
 constexpr int SERVO_MIN_PW = 600;
