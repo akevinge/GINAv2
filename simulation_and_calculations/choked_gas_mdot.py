@@ -8,7 +8,7 @@ from scipy.constants import R
 import matplotlib.pyplot as plt
 from typing import Literal
 
-from conversions import psi_to_pa, pa_to_psi, mm2_to_m2, bar_to_psi
+from conversions import psi_to_pa, pa_to_psi, mm2_to_m2, bar_to_psi, m3_to_gal
 from properties import (
     get_n2_molar_mass,
     get_gox_molar_mass,
@@ -18,6 +18,7 @@ from properties import (
     get_water_density,
 )
 
+FIRE_DURATION = 5 # s 
 GAS: Literal["N2"] | Literal["GOX"] = "GOX"
 LIQUID: Literal["ETHANOL"] | Literal["WATER"] = "ETHANOL"
 IDEAL_TOTAL_MDOT = 0.1442994641
@@ -34,6 +35,7 @@ Cd = 0.7  # Assumption
 specific_gas_constant = R / (
     get_n2_molar_mass() if GAS == "N2" else get_gox_molar_mass()
 )
+print("Specific Gas Constant (J/kg-K):", specific_gas_constant)
 get_gas_density_fn = get_n2_density if GAS == "N2" else get_gox_density
 get_liquid_density_fn = get_eth_density if LIQUID == "ETHANOL" else get_water_density
 
@@ -42,7 +44,7 @@ def critical_pressure_ratio(gamma=DIATOMIC_GAMMA):
     return (2 / (gamma + 1)) ** (gamma / (gamma - 1))
 
 
-def choked_gas_mdot(Cd, P0, T0, A, gamma=DIATOMIC_GAMMA, R=287):
+def choked_gas_mdot(Cd, P0, T0, A, gamma=DIATOMIC_GAMMA, R=specific_gas_constant):
     return (
         (Cd * A * P0 / math.sqrt(T0))
         * math.sqrt(gamma / R)
@@ -118,6 +120,13 @@ plt.axhline(
     linestyle="--",
     label=f"Desired {GAS} Mass Flow Rate",
 )
+# Plot vertical line for minimum choked inlet pressure
+plt.axvline(
+    pa_to_psi(minimum_choked_inlet_pressure),
+    color="orange",
+    linestyle="--",
+    label="Minimum Choked Inlet Pressure",
+)
 # Plot point which is closest to desired mdot and label it
 plt.plot(
     pa_to_psi(possible_inlet_pressures[best_pressure_index]),
@@ -128,7 +137,7 @@ plt.plot(
 plt.xlabel("Inlet Pressure (psi)")
 plt.ylabel("Mass Flow Rate (kg/s)")
 plt.title(
-    f"{GAS} Mass Flow Rate vs Inlet Pressure w/ Cd={Cd}, O/F={OF_RATIO}, T={STAGNATION_TEMPERATURE}K"
+    f"{GAS} Mass Flow Rate vs Inlet Pressure w/ Cd={Cd}, O/F={OF_RATIO}, T={STAGNATION_TEMPERATURE}K, P_out={round(OUTLET_PRESSURE, 2)}psi"
 )
 plt.legend()
 plt.grid()
@@ -146,7 +155,19 @@ dP = incompresible_dP(
     ),
     mdot=liquid_mdot,
 )
-print(f"dP required for {LIQUID} flow (psi):", pa_to_psi(dP))
+dP_precent = dP / (psi_to_pa(OUTLET_PRESSURE)) * 100
+print(
+    f"dP required for {LIQUID} flow (psi): {pa_to_psi(dP)} = {dP_precent:.2f}% of outlet pressure"
+)
+
+# Calculate volume needed to sustain `FIRE_DURATION`
+liquid_vol = m3_to_gal(liquid_mdot * FIRE_DURATION / get_liquid_density_fn(
+        psi_to_pa(OUTLET_PRESSURE) + 1,  # Slightly above outlet pressure
+        STAGNATION_TEMPERATURE,
+))
+
+print(f"Volume of {LIQUID} required for {FIRE_DURATION}: {liquid_vol} gal")
+
 
 gas_mdot = gas_mdots[best_pressure_index]
 gas_inlet_pressure = possible_inlet_pressures[best_pressure_index]
